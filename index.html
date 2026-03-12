@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-PT">
 <head>
     <meta charset="UTF-8">
-    <!-- Viewport estrito para comportamento de App Nativo (sem zoom, sem redimensionamento) -->
+    <!-- Viewport estrito para comportamento de App Nativo -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
-    <!-- Meta tags para PWA (Progressive Web App) -->
+    <!-- Meta tags para PWA -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#020617">
@@ -21,8 +21,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.10.0/firebase-database-compat.js"></script>
 
-    <!-- ExcelJS (Biblioteca para gerar arquivos Excel XLSX sofisticados) -->
+    <!-- ExcelJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+
+    <!-- EmailJS (Versão 4 mais recente e estável) -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -34,35 +37,162 @@
             background-color: #020617; /* Slate 950 */
         }
         
-        /* Ocultar barra de rolagem visualmente, mas manter funcionalidade */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Suporte aprimorado para Safe Area (Evita sobreposição das navbars e status bars) */
         .pb-safe { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px) !important; }
         .pb-safe-modal { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 48px) !important; } 
-        /* Adicionada margem extra de 12px ao topo para a barra do Android não sobrepor os botões */
         .pt-safe { padding-top: calc(env(safe-area-inset-top, 0px) + 12px) !important; }
         
-        /* Animações nativas (Bottom Sheet e Fades) */
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .animate-fade-in { animation: fadeIn 0.2s ease-out forwards; }
         
-        /* Efeito de luz azul intensa para a logo ao clicar */
         .logo-glow-active {
             filter: drop-shadow(0 0 25px rgba(59,130,246,1)) brightness(1.4) !important;
+        }
+
+        .premium-gradient {
+            background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
+        }
+        
+        .premium-text-gradient {
+            background: linear-gradient(135deg, #fcd34d 0%, #f59e0b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
     </style>
 </head>
 <body class="bg-slate-950 flex justify-center h-[100dvh] overflow-hidden relative">
 
-    <!-- APP CONTAINER -->
-    <div id="app-container" class="w-full max-w-md h-full bg-slate-950 relative overflow-hidden flex flex-col pt-safe">
+    <!-- CUSTOM DIALOG MODAL (POP-UP) -->
+    <div id="custom-dialog" class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-[999] hidden flex-col items-center justify-center p-4 transition-opacity duration-300 opacity-0">
+        <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-sm w-full shadow-2xl transform scale-95 transition-transform duration-300 relative overflow-hidden" id="custom-dialog-box">
+            <div id="custom-dialog-header-bg" class="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
+            <h3 class="text-white font-bold text-lg mb-3 flex items-center gap-2">
+                <i data-lucide="info" class="w-5 h-5 text-blue-500" id="custom-dialog-icon"></i>
+                <span id="custom-dialog-title-text">Aviso</span>
+            </h3>
+            <p id="custom-dialog-message" class="text-slate-300 text-sm mb-6 whitespace-pre-wrap leading-relaxed"></p>
+            <div class="flex gap-3 justify-end" id="custom-dialog-buttons">
+                <!-- Buttons injected via JS -->
+            </div>
+        </div>
+    </div>
 
-        <!-- HEADER TOP (z-50 garantido) -->
+    <!-- TELA DE LOGIN / REGISTRO / RESET -->
+    <div id="login-screen" class="fixed inset-0 bg-slate-950 z-[100] flex flex-col items-center justify-center px-6 transition-opacity duration-500 overflow-y-auto py-10 scrollbar-hide">
+        <div class="w-full max-w-sm flex flex-col items-center animate-slide-up my-auto">
+            <img src="https://raw.githubusercontent.com/Marcelo9035/IMAGES/refs/heads/main/Novo%20Projeto.png" class="h-24 w-auto mb-6 drop-shadow-[0_0_20px_rgba(59,130,246,0.6)]" alt="Logo" />
+            <h1 class="text-3xl font-bold text-white mb-2 tracking-tight">GameVault</h1>
+            <p id="auth-subtitle" class="text-slate-400 text-sm mb-6 text-center">Identifica-te para aceder ao cofre</p>
+
+            <!-- AVISO DE 3 DIAS GRATUITOS -->
+            <div id="trial-notice" class="w-full bg-blue-900/30 border border-blue-500/30 rounded-2xl p-3.5 mb-6 flex items-center gap-3 shadow-[0_4px_20px_rgba(59,130,246,0.15)]">
+                <div class="bg-blue-500/20 p-2.5 rounded-full shrink-0">
+                    <i data-lucide="unlock" class="w-5 h-5 text-blue-400"></i>
+                </div>
+                <p class="text-[11px] text-blue-100 leading-snug text-left">
+                    Contas novas incluem <strong class="text-blue-400 font-bold">3 dias de teste</strong> (limite de 10 jogos e sem cópias de segurança). Após este período, será requerida a versão Premium.
+                </p>
+            </div>
+
+            <!-- FORMULÁRIO: ENTRAR -->
+            <div id="form-login" class="w-full bg-slate-900 border border-slate-800 rounded-[2rem] p-6 shadow-2xl">
+                <div class="mb-4">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="user" class="w-3 h-3"></i> Utilizador ou E-mail</label>
+                    <input type="text" id="login-user" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 transition-colors" placeholder="" onkeypress="if(event.key === 'Enter') document.getElementById('login-pass').focus()">
+                </div>
+                <div class="mb-2 relative">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="lock" class="w-3 h-3"></i> Palavra-passe</label>
+                    <input type="password" id="login-pass" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 transition-colors pr-10" placeholder="" onkeypress="if(event.key === 'Enter') doLogin()">
+                    <button onclick="togglePasswordView('login-pass', 'login-eye')" class="absolute right-3 top-[34px] text-slate-500 p-1 outline-none">
+                        <i id="login-eye" data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                
+                <div class="flex justify-end mb-6">
+                    <button onclick="switchAuthView('reset')" class="text-[10px] text-slate-400 hover:text-blue-400 font-medium transition-colors">Esqueci-me da palavra-passe</button>
+                </div>
+                
+                <button onclick="doLogin()" id="btn-login" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl transition-all active:scale-95 flex justify-center items-center gap-2 shadow-[0_4px_20px_rgba(59,130,246,0.4)] mb-4">
+                    <span id="login-btn-text">Entrar no Cofre</span>
+                    <i id="login-btn-icon" data-lucide="arrow-right" class="w-4 h-4"></i>
+                </button>
+                
+                <div class="border-t border-slate-800 pt-4 text-center">
+                    <p class="text-xs text-slate-400">Não tens uma conta?</p>
+                    <button onclick="switchAuthView('register')" class="text-blue-400 font-bold text-sm mt-1 hover:text-blue-300 transition-colors">Registar Novo Cofre</button>
+                </div>
+            </div>
+
+            <!-- FORMULÁRIO: CADASTRAR -->
+            <div id="form-register" class="w-full bg-slate-900 border border-slate-800 rounded-[2rem] p-6 shadow-2xl hidden">
+                <div class="mb-4">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="user" class="w-3 h-3"></i> Nome Completo</label>
+                    <input type="text" id="reg-fullname" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 transition-colors" placeholder="Ex: João da Silva" onkeypress="if(event.key === 'Enter') document.getElementById('reg-user').focus()">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="at-sign" class="w-3 h-3"></i> Criar Nome de Utilizador</label>
+                    <input type="text" id="reg-user" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 transition-colors" placeholder="Ex: JoaoSilva" onkeypress="if(event.key === 'Enter') document.getElementById('reg-email').focus()">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="mail" class="w-3 h-3"></i> E-mail (Obrigatório)</label>
+                    <input type="email" id="reg-email" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 transition-colors" placeholder="joao@exemplo.com" onkeypress="if(event.key === 'Enter') document.getElementById('reg-pass').focus()">
+                </div>
+                <div class="mb-6 relative">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="key" class="w-3 h-3"></i> Criar Palavra-passe</label>
+                    <input type="password" id="reg-pass" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-blue-500 transition-colors pr-10" placeholder="Cria uma palavra-passe forte" onkeypress="if(event.key === 'Enter') doRegister()">
+                    <button onclick="togglePasswordView('reg-pass', 'reg-eye')" class="absolute right-3 top-[34px] text-slate-500 p-1 outline-none">
+                        <i id="reg-eye" data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                
+                <button onclick="doRegister()" id="btn-register" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl transition-all active:scale-95 flex justify-center items-center gap-2 shadow-[0_4px_20px_rgba(16,185,129,0.4)] mb-4">
+                    <span id="reg-btn-text">Confirmar Registo</span>
+                    <i id="reg-btn-icon" data-lucide="check-circle" class="w-4 h-4"></i>
+                </button>
+
+                <div class="text-center">
+                    <button onclick="switchAuthView('login')" class="text-xs text-slate-400 hover:text-white transition-colors">Voltar para o Início de Sessão</button>
+                </div>
+            </div>
+
+            <!-- FORMULÁRIO: REDEFINIR SENHA -->
+            <div id="form-reset" class="w-full bg-slate-900 border border-slate-800 rounded-[2rem] p-6 shadow-2xl hidden">
+                <p class="text-xs text-slate-400 mb-5 text-center leading-relaxed">Informa o teu Nome de Utilizador atual e escolhe uma nova palavra-passe para a tua conta.</p>
+                
+                <div class="mb-4">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="user" class="w-3 h-3"></i> Nome de Utilizador</label>
+                    <input type="text" id="reset-user" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-amber-500 transition-colors" placeholder="O teu utilizador" onkeypress="if(event.key === 'Enter') document.getElementById('reset-pass').focus()">
+                </div>
+                <div class="mb-6 relative">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5"><i data-lucide="lock" class="w-3 h-3"></i> Nova Palavra-passe</label>
+                    <input type="password" id="reset-pass" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-amber-500 transition-colors pr-10" placeholder="Escolhe a nova palavra-passe" onkeypress="if(event.key === 'Enter') doReset()">
+                    <button onclick="togglePasswordView('reset-pass', 'reset-eye')" class="absolute right-3 top-[34px] text-slate-500 p-1 outline-none">
+                        <i id="reset-eye" data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                
+                <button onclick="doReset()" id="btn-reset" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-4 rounded-xl transition-all active:scale-95 flex justify-center items-center gap-2 shadow-[0_4px_20px_rgba(245,158,11,0.4)] mb-4">
+                    <span id="reset-btn-text">Redefinir Palavra-passe</span>
+                    <i id="reset-btn-icon" data-lucide="refresh-cw" class="w-4 h-4"></i>
+                </button>
+
+                <div class="text-center">
+                    <button onclick="switchAuthView('login')" class="text-xs text-slate-400 hover:text-white transition-colors">Voltar para o Início de Sessão</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- APP CONTAINER (Inicialmente oculto) -->
+    <div id="app-container" class="w-full max-w-md h-full bg-slate-950 relative overflow-hidden hidden flex-col pt-safe">
+
+        <!-- HEADER TOP -->
         <header class="bg-slate-950/90 backdrop-blur-md px-5 h-[65px] shrink-0 flex items-center justify-between z-50 border-b border-slate-800/50 relative">
             <button onclick="togglePlatformMenu()" class="flex items-center gap-2 outline-none active:scale-95 transition-transform text-left py-2">
                 <img id="main-app-logo" src="https://raw.githubusercontent.com/Marcelo9035/IMAGES/refs/heads/main/Novo%20Projeto.png" 
@@ -74,38 +204,65 @@
                 </div>
             </button>
             
-            <!-- Indicador de Status Cloud Pequeno -->
             <div class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-full shrink-0">
                 <span id="firebase-status-dot" class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse shadow-[0_0_5px_currentColor]"></span>
-                <span id="firebase-status-text" class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Lendo</span>
+                <span id="firebase-status-text" class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">A Ler</span>
             </div>
         </header>
 
-        <!-- MENU OCULTO DE PLATAFORMAS E AÇÕES (DROPDOWN / MENU SECRETO) -->
-        <div id="platform-dropdown" class="absolute top-[65px] left-0 w-full bg-slate-900/95 backdrop-blur-2xl border-b border-slate-800 z-40 flex flex-col px-4 py-5 shadow-[0_20px_40px_rgba(0,0,0,0.6)] transition-all duration-300 -translate-y-full opacity-0 pointer-events-none">
+        <!-- MENU OCULTO DE PLATAFORMAS E AÇÕES -->
+        <div id="platform-dropdown" class="absolute top-[65px] left-0 w-full max-h-[calc(100dvh-65px)] overflow-y-auto scrollbar-hide bg-slate-900/95 backdrop-blur-2xl border-b border-slate-800 z-40 flex flex-col px-4 py-5 shadow-[0_20px_40px_rgba(0,0,0,0.6)] transition-all duration-300 -translate-y-full opacity-0 pointer-events-none pb-24">
             
-            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">Selecione o Filtro</h3>
+            <!-- Perfil do Utilizador Logado -->
+            <div class="flex items-center justify-between bg-slate-950 border border-slate-800 p-3 rounded-2xl mb-4 relative overflow-hidden">
+                <div id="premium-badge-menu" class="absolute top-0 right-0 bg-amber-500 text-slate-900 text-[8px] font-bold px-2 py-0.5 rounded-bl-lg hidden">PRO</div>
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg border-2 border-slate-900">
+                        <i data-lucide="user" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-0.5">Sessão de</p>
+                        <p id="display-logged-user" class="text-sm font-bold text-white truncate max-w-[150px]">Utilizador</p>
+                    </div>
+                </div>
+                <button onclick="window.fazerLogout()" class="p-2.5 bg-red-500/10 text-red-400 rounded-xl border border-red-500/20 active:scale-95 transition-all mt-2">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Botão de Painel Admin (Visível apenas para Administrador) -->
+            <button id="btn-admin-panel" onclick="openAdminPanel()" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl shadow-[0_4px_15px_rgba(147,51,234,0.3)] justify-center items-center gap-2 mb-5 hidden active:scale-95 transition-all">
+                <i data-lucide="shield-check" class="w-4 h-4"></i> Central do Administrador
+            </button>
+
+            <!-- Botão de Upgrade (Visível apenas para Contas Gratuitas) -->
+            <button id="btn-upgrade-menu" onclick="showPremiumScreen(false)" class="w-full premium-gradient text-white font-bold py-3 rounded-xl shadow-[0_4px_15px_rgba(245,158,11,0.3)] flex justify-center items-center gap-2 mb-5 active:scale-95 transition-all">
+                <i data-lucide="crown" class="w-4 h-4"></i> Desbloquear Premium
+            </button>
+
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 px-1">Seleciona o Filtro</h3>
 
             <!-- Gride de Plataformas do Dropdown -->
             <div class="grid grid-cols-3 gap-2" id="dropdown-platforms-container">
                 <!-- Renderizado via JS -->
             </div>
 
-            <!-- SEÇÃO DE FERRAMENTAS DE DADOS (Exportar/Importar TXT e XLSX) -->
-            <div class="mt-5 pt-4 border-t border-slate-800/50 flex flex-col gap-2.5">
-                <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">Ferramentas de Banco de Dados</h3>
+            <!-- SEÇÃO DE FERRAMENTAS DE DADOS -->
+            <div class="mt-5 pt-4 border-t border-slate-800/50 flex flex-col gap-2.5 relative">
+                <div class="flex justify-between items-center px-1 mb-1">
+                    <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Base de Dados</h3>
+                    <i id="lock-tools-icon" data-lucide="lock" class="w-3 h-3 text-amber-500"></i>
+                </div>
                 
-                <!-- Botão XLSX -->
                 <button onclick="exportarPlanilhaSofisticada(this)" class="w-full text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-500/20 active:scale-95 transition-all border border-emerald-500/20 shadow-[0_4px_15px_rgba(16,185,129,0.15)]">
                     <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Relatório XLSX Avançado
                 </button>
 
-                <!-- Botões TXT e HTML (Export / Import / HTML) -->
                 <div class="grid grid-cols-3 gap-2">
                     <button onclick="exportarTXT(this)" class="w-full text-[10px] font-bold text-blue-400 bg-blue-500/10 py-2.5 rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-blue-500/20 active:scale-95 transition-all border border-blue-500/20">
                         <i data-lucide="download-cloud" class="w-4 h-4"></i> Exp. TXT
                     </button>
-                    <button onclick="document.getElementById('import-txt-input').click()" class="w-full text-[10px] font-bold text-amber-400 bg-amber-500/10 py-2.5 rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-amber-500/20 active:scale-95 transition-all border border-amber-500/20">
+                    <button onclick="verificarImportarTXT()" class="w-full text-[10px] font-bold text-amber-400 bg-amber-500/10 py-2.5 rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-amber-500/20 active:scale-95 transition-all border border-amber-500/20">
                         <i data-lucide="file-code-2" class="w-4 h-4"></i> Imp. TXT
                     </button>
                     <button onclick="exportarVisualizadorHTML(this)" class="w-full text-[10px] font-bold text-purple-400 bg-purple-500/10 py-2.5 rounded-xl flex flex-col items-center justify-center gap-1 hover:bg-purple-500/20 active:scale-95 transition-all border border-purple-500/20">
@@ -119,23 +276,33 @@
         <!-- MAIN SCROLLABLE CONTENT -->
         <main class="flex-1 overflow-y-auto overflow-x-hidden relative scrollbar-hide bg-slate-950 z-20">
             
-            <!-- Barra de Pesquisa Fixa -->
             <div class="px-4 py-3 sticky top-0 bg-slate-950/95 backdrop-blur-xl z-10 mb-2 flex gap-2 items-center">
                 <div class="relative group flex-1 shadow-sm">
                     <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-                    <input type="text" id="search-input" placeholder="Buscar jogo..." class="w-full pl-11 pr-4 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder-slate-500" />
+                    <input type="text" id="search-input" placeholder="Pesquisar jogo..." class="w-full pl-11 pr-4 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder-slate-500" />
                 </div>
             </div>
 
-            <!-- SESSÃO JOGANDO AGORA -->
+            <!-- PROGRESÃO CONTA GRÁTIS -->
+            <div id="free-tier-progress" class="px-4 mb-4 hidden">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Uso Gratuito</span>
+                        <span id="free-tier-count" class="text-xs font-bold text-amber-500">0/10 Jogos</span>
+                    </div>
+                    <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+                        <div id="free-tier-bar" class="h-full bg-amber-500 transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
             <div id="playing-now-section" class="px-4 mb-4 hidden flex-col gap-2">
-                <h2 class="text-white font-bold text-sm flex items-center gap-1.5"><i data-lucide="play-circle" class="w-4 h-4 text-blue-400"></i> Jogando Agora</h2>
+                <h2 class="text-white font-bold text-sm flex items-center gap-1.5"><i data-lucide="play-circle" class="w-4 h-4 text-blue-400"></i> A Jogar Agora</h2>
                 <div id="playing-now-grid" class="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
                     <!-- Renderizado via JS -->
                 </div>
             </div>
 
-            <!-- Grid de Jogos (Sempre 2 colunas no App) -->
             <div class="px-4 pb-28">
                 <div class="flex justify-between items-center mb-4 px-1">
                     <h2 id="section-title" class="text-white font-bold text-lg">Coleção</h2>
@@ -146,35 +313,31 @@
                     <!-- Renderizado via JS -->
                 </div>
 
-                <!-- Empty State -->
                 <div id="empty-state" class="hidden flex-col items-center justify-center py-16 text-center animate-fade-in">
                     <div class="p-5 bg-slate-900 rounded-full mb-3 border border-slate-800">
                         <i data-lucide="ghost" class="w-10 h-10 text-slate-600"></i>
                     </div>
-                    <h2 class="text-base font-bold text-slate-300 mb-1">Nenhum jogo</h2>
-                    <p class="text-[11px] text-slate-500 max-w-[200px]">Sem jogos para mostrar neste filtro.</p>
+                    <h2 class="text-base font-bold text-slate-300 mb-1">Cofre Vazio</h2>
+                    <p class="text-[11px] text-slate-500 max-w-[200px]">Começa a adicionar jogos para preencher esta lista.</p>
                 </div>
             </div>
         </main>
 
-        <!-- BOTTOM NAVIGATION BAR (Padrão de Apps Nativos) -->
+        <!-- BOTTOM NAVIGATION BAR -->
         <nav class="absolute bottom-0 w-full max-w-md bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 z-30 pb-safe">
             <div class="flex justify-around items-center h-16 relative px-2">
                 
-                <!-- Coleção (Home) -->
                 <button onclick="setPlatformFilter('all'); window.scrollTo({top:0, behavior:'smooth'})" class="flex flex-col items-center gap-1 text-blue-400 w-16 transition-transform active:scale-95">
                     <i data-lucide="library" class="w-5 h-5"></i>
                     <span class="text-[9px] font-bold">Coleção</span>
                 </button>
                 
-                <!-- Central FAB (Floating Action Button) Adicionar -->
                 <div class="relative -top-5">
                     <button onclick="openNewGameModal()" class="w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-[0_8px_20px_rgba(59,130,246,0.6)] border-[5px] border-slate-950 hover:bg-blue-500 active:scale-90 transition-all">
                         <i data-lucide="plus" class="w-6 h-6"></i>
                     </button>
                 </div>
 
-                <!-- Desejos Atalho -->
                 <button onclick="setPlatformFilter('wishlist'); window.scrollTo({top:0, behavior:'smooth'})" class="flex flex-col items-center gap-1 text-slate-500 hover:text-yellow-400 w-16 transition-transform active:scale-95">
                     <i data-lucide="star" class="w-5 h-5"></i>
                     <span class="text-[9px] font-medium">Desejos</span>
@@ -182,17 +345,121 @@
             </div>
         </nav>
 
-        <!-- MODAL BOTTOM SHEET (Adicionar / Editar) -->
-        <div id="game-modal" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex-col justify-end hidden">
+        <!-- TELA DE VENDAS / PREMIUM OVERLAY -->
+        <div id="premium-screen" class="absolute inset-0 bg-slate-950 z-[200] hidden flex-col transition-opacity duration-300">
+            <div class="w-full flex justify-end p-4 shrink-0 absolute top-0 z-10">
+                <button id="btn-close-premium" onclick="fecharPremiumScreen()" class="p-2 bg-slate-900 text-slate-400 hover:text-white rounded-full border border-slate-800 shadow-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
             
+            <div class="flex-1 overflow-y-auto pb-10 scrollbar-hide px-5">
+                <div class="flex flex-col items-center pt-12 pb-6">
+                    <div class="w-20 h-20 premium-gradient rounded-[2rem] flex items-center justify-center mb-5 shadow-[0_10px_30px_rgba(245,158,11,0.4)] relative">
+                        <i data-lucide="crown" class="w-10 h-10 text-white"></i>
+                        <div class="absolute -top-2 -right-2 bg-white text-orange-600 text-[10px] font-black px-2 py-0.5 rounded-full shadow-md rotate-12">PRO</div>
+                    </div>
+                    <h1 class="text-3xl font-black text-white text-center mb-2 tracking-tight">GameVault <span class="premium-text-gradient">Premium</span></h1>
+                    <p id="premium-reason-text" class="text-sm text-slate-400 text-center max-w-[280px]">Desbloqueia todo o potencial do teu cofre sem limites e com ferramentas avançadas.</p>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-[2rem] p-6 mb-6 shadow-xl">
+                    <div class="flex items-end justify-center mb-6 gap-1">
+                        <span class="text-slate-400 text-lg font-bold mb-1">R$</span>
+                        <span class="text-5xl font-black text-white tracking-tighter">1,00</span>
+                        <span class="text-slate-500 text-xs font-medium mb-1.5">/ único</span>
+                    </div>
+
+                    <div class="space-y-4 mb-8">
+                        <div class="flex items-center gap-3">
+                            <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0"><i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i></div>
+                            <span class="text-sm text-slate-300 font-medium">Jogos <strong class="text-white">Ilimitados</strong> (sem travas)</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0"><i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i></div>
+                            <span class="text-sm text-slate-300 font-medium">Exportação em <strong class="text-white">Planilha XLSX</strong></span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0"><i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i></div>
+                            <span class="text-sm text-slate-300 font-medium">Cópia de Segurança em <strong class="text-white">TXT / HTML</strong></span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0"><i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i></div>
+                            <span class="text-sm text-slate-300 font-medium">Acesso <strong class="text-white">Vitalício</strong> com uma taxa</span>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-800 pt-5">
+                        <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 text-center">Método de Pagamento</h3>
+                        
+                        <div class="flex bg-slate-950 p-1.5 rounded-xl mb-5 border border-slate-800">
+                            <button onclick="alternarMetodoPagamento('pix')" id="tab-pix" class="flex-1 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white shadow-md transition-colors">Pix</button>
+                            <button onclick="alternarMetodoPagamento('cartao')" id="tab-cartao" class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-colors">Cartão</button>
+                        </div>
+
+                        <!-- PIX VIEW -->
+                        <div id="view-pix" class="flex flex-col gap-4 animate-fade-in">
+                            <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex flex-col items-center text-center relative overflow-hidden">
+                                <img src="https://raw.githubusercontent.com/Marcelo9035/IMAGES/refs/heads/main/Screenshot_3.png" alt="QR Code Pix" class="w-48 h-auto object-contain rounded-xl mb-3 shadow-md" />
+                                <p class="text-xs text-emerald-100 mb-3">Lê o QR Code acima na tua aplicação bancária.</p>
+                            </div>
+                            
+                            <button onclick="processarPagamento()" id="btn-confirmar-pix" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 rounded-xl transition-all active:scale-95 flex justify-center items-center gap-2 border border-slate-700">
+                                <span id="pix-btn-text">Já realizei o pagamento</span>
+                                <i id="pix-btn-icon" data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+                            </button>
+                        </div>
+
+                        <!-- CARTÃO VIEW -->
+                        <div id="view-cartao" class="hidden flex-col gap-3 animate-fade-in">
+                            <input type="text" placeholder="Número do Cartão" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500">
+                            <input type="text" placeholder="Nome no Cartão" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500">
+                            <div class="flex gap-3">
+                                <input type="text" placeholder="MM/AA" class="w-1/2 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500">
+                                <input type="text" placeholder="CVV" class="w-1/2 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-blue-500">
+                            </div>
+                            <button onclick="processarPagamento()" id="btn-confirmar-cartao" class="w-full premium-gradient hover:brightness-110 text-white font-bold py-4 rounded-xl transition-all active:scale-95 flex justify-center items-center gap-2 mt-2 shadow-[0_4px_15px_rgba(245,158,11,0.3)]">
+                                <span id="cartao-btn-text">Pagar R$ 1,00 agora</span>
+                                <i id="cartao-btn-icon" data-lucide="credit-card" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <p class="text-center text-[9px] text-slate-500 mb-8 px-4">Pagamento 100% seguro processado em ambiente criptografado de ponta a ponta. Liberação imediata.</p>
+            </div>
+        </div>
+
+        <!-- PAINEL DE ADMINISTRAÇÃO (CENTRAL DO ADMIN) -->
+        <div id="admin-panel" class="absolute inset-0 bg-slate-950 z-[300] hidden flex-col transition-opacity duration-300">
+            <header class="bg-slate-900/90 backdrop-blur-md px-5 h-[65px] shrink-0 flex items-center justify-between border-b border-slate-800 sticky top-0 z-10">
+                <h1 class="font-bold text-lg text-white flex items-center gap-2">
+                    <div class="bg-purple-500/20 p-1.5 rounded-lg border border-purple-500/30">
+                        <i data-lucide="shield-check" class="text-purple-400 w-5 h-5"></i>
+                    </div>
+                    Central Admin
+                </h1>
+                <button onclick="closeAdminPanel()" class="p-2 bg-slate-800 text-slate-400 hover:text-white rounded-full transition-colors active:scale-95">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </header>
+            <div class="px-5 pt-5 pb-2 shrink-0">
+                <h2 class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Gestão de Utilizadores</h2>
+                <p class="text-xs text-slate-400 mt-1">Aprova pagamentos e gere bloqueios de contas.</p>
+            </div>
+            <div class="flex-1 overflow-y-auto px-4 pb-safe flex flex-col gap-4 scrollbar-hide" id="admin-users-list">
+                <!-- Renderizado via JS -->
+            </div>
+        </div>
+
+        <!-- MODAL BOTTOM SHEET (ADD/EDIT GAME) -->
+        <div id="game-modal" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex-col justify-end hidden">
             <div class="bg-slate-900 w-full h-[95%] rounded-t-[2rem] shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden border-t border-slate-800 animate-slide-up relative">
                 
-                <!-- Pull Indicator -->
                 <div class="w-full flex justify-center py-3 shrink-0" onclick="closeModal()">
                     <div class="w-10 h-1.5 bg-slate-700 rounded-full"></div>
                 </div>
 
-                <!-- Header Modal -->
                 <div class="px-5 pb-3 border-b border-slate-800 shrink-0 flex justify-between items-center">
                     <h2 id="modal-title-text" class="text-base font-bold text-white flex items-center gap-2">
                         <i id="modal-title-icon" data-lucide="plus-circle" class="w-5 h-5 text-blue-400"></i>
@@ -203,13 +470,11 @@
                     </button>
                 </div>
 
-                <!-- Modal Scrollable Content -->
                 <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-5 pb-48 scrollbar-hide bg-slate-950/50">
                     
-                    <!-- Busca na API (Nuvem) -->
                     <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
                         <label class="block text-[10px] font-bold text-blue-400 mb-2 uppercase tracking-widest flex items-center gap-1.5">
-                            <i data-lucide="cloud-lightning" class="w-3.5 h-3.5"></i> Autopreencher
+                            <i data-lucide="cloud-lightning" class="w-3.5 h-3.5"></i> Preencher Auto
                         </label>
                         <div class="flex gap-2">
                             <select id="api-source-select" class="px-2 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-blue-400 focus:outline-none font-bold shrink-0 max-w-[80px]">
@@ -225,27 +490,22 @@
                         <div id="api-results-container" class="mt-3 max-h-40 overflow-y-auto bg-slate-950 rounded-xl border border-slate-800 divide-y divide-slate-800 hidden scrollbar-hide"></div>
                     </div>
 
-                    <!-- Capa e Título (Lado a Lado para economizar tela) -->
                     <div class="flex gap-3 bg-slate-900 border border-slate-800 p-4 rounded-2xl">
-                        <!-- Capa -->
                         <div class="w-24 shrink-0 flex flex-col gap-2 relative">
                             <div id="modal-cover-tabs" class="flex flex-wrap gap-1 absolute -top-8 left-0 right-0 hidden justify-center"></div>
                             
                             <div id="cover-preview-container" class="aspect-[3/4] w-full bg-slate-950 rounded-xl border border-slate-800 overflow-hidden flex items-center justify-center relative">
-                                <!-- Injetado -->
                             </div>
                             <input type="url" id="form-cover-url" placeholder="URL Imagem..." class="w-full px-2 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-[9px] text-center text-white focus:outline-none" />
                         </div>
 
-                        <!-- Infos Pessoais do Jogo -->
                         <div class="flex-1 flex flex-col justify-center min-w-0">
                             <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Título do Jogo</label>
                             <input type="text" id="form-title" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-bold text-white placeholder-slate-600 uppercase mb-3 focus:outline-none focus:border-blue-500" placeholder="Ex: GTA V" />
                             
-                            <!-- Toggle Jogando Agora -->
                             <div class="bg-slate-950 border border-slate-800 rounded-xl p-2 mb-2">
                                 <label class="flex items-center gap-2 cursor-pointer w-full justify-between">
-                                    <span class="font-bold text-[10px] text-blue-400 uppercase tracking-wide flex items-center gap-1"><i data-lucide="play" class="w-3 h-3"></i> Jogando?</span>
+                                    <span class="font-bold text-[10px] text-blue-400 uppercase tracking-wide flex items-center gap-1"><i data-lucide="play" class="w-3 h-3"></i> A Jogar?</span>
                                     <div class="relative flex items-center">
                                         <input type="checkbox" id="form-is-playing" class="peer sr-only" />
                                         <div class="w-8 h-5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 transition-colors"></div>
@@ -253,7 +513,6 @@
                                 </label>
                             </div>
 
-                            <!-- Toggle Lista de Desejos -->
                             <div class="bg-slate-950 border border-slate-800 rounded-xl p-2 mb-2">
                                 <label class="flex items-center gap-2 cursor-pointer w-full justify-between">
                                     <span class="font-bold text-[10px] text-yellow-400 uppercase tracking-wide flex items-center gap-1"><i data-lucide="star" class="w-3 h-3"></i> Desejos?</span>
@@ -264,7 +523,6 @@
                                 </label>
                             </div>
 
-                            <!-- Toggle Emprestado Minimalista -->
                             <div id="borrowed-card" class="bg-slate-950 border border-slate-800 rounded-xl p-2 transition-all">
                                 <label class="flex items-center gap-2 cursor-pointer w-full justify-between">
                                     <span id="borrowed-label" class="font-bold text-[10px] text-slate-400 uppercase tracking-wide">Emprestado?</span>
@@ -280,7 +538,6 @@
                         </div>
                     </div>
 
-                    <!-- Tags / Filtros -->
                     <div class="flex flex-col gap-4 bg-slate-900 border border-slate-800 p-4 rounded-2xl">
                         <div>
                             <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Plataformas</label>
@@ -296,7 +553,6 @@
                         </div>
                     </div>
 
-                    <!-- Sinopse -->
                     <div class="flex flex-col">
                         <div class="flex justify-between items-end mb-2 px-1">
                             <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">Sinopse</label>
@@ -310,13 +566,12 @@
                     </div>
                 </div>
 
-                <!-- Footer Fixado no Modal (Corrigido para Navbar Android) -->
                 <div class="absolute bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 px-4 pt-4 pb-safe-modal z-30 flex gap-3">
                     <button id="btn-delete" onclick="deleteGame()" class="w-12 h-12 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl flex items-center justify-center shrink-0 hidden active:scale-95 transition-transform">
                         <i data-lucide="trash-2" class="w-5 h-5"></i>
                     </button>
                     <button onclick="closeModal()" class="flex-1 h-12 bg-slate-800 text-white rounded-xl text-xs font-bold active:scale-95 transition-transform">Cancelar</button>
-                    <button onclick="saveGame()" class="flex-1 h-12 bg-blue-600 text-white rounded-xl text-xs font-bold active:scale-95 transition-transform shadow-[0_4px_15px_rgba(59,130,246,0.3)]">Salvar</button>
+                    <button onclick="saveGame()" class="flex-1 h-12 bg-blue-600 text-white rounded-xl text-xs font-bold active:scale-95 transition-transform shadow-[0_4px_15px_rgba(59,130,246,0.3)]">Guardar</button>
                 </div>
             </div>
         </div>
@@ -324,84 +579,10 @@
     </div> <!-- End App Container -->
 
     <div id="exit-toast" class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-4 py-2 rounded-full shadow-lg transition-opacity duration-300 opacity-0 pointer-events-none z-[100]">
-        Pressione voltar novamente para sair
+        Pressiona voltar novamente para sair
     </div>
 
-    <!-- CAPACITOR PLUGINS (UPDATER) -->
-    <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorUpdater) {
-                const updater = window.Capacitor.Plugins.CapacitorUpdater;
-                await updater.notifyAppReady();
-                try {
-                    const update = await updater.download();
-                    if (update && update.version) {
-                        alert("Atualização encontrada! Reiniciando o aplicativo...");
-                        await updater.set({ id: update.version }); 
-                    }
-                } catch (err) {
-                    console.log("Nenhuma atualização pendente.");
-                }
-            }
-        });
-    </script>
-
-    <!-- CAPACITOR PLUGINS (BACK BUTTON) -->
-    <script>
-        // --- CONTROLE DO BOTÃO VOLTAR DO ANDROID ---
-        let lastBackPressTime = 0;
-
-        document.addEventListener('DOMContentLoaded', () => {
-            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
-                window.Capacitor.Plugins.App.addListener('backButton', () => {
-                    const modal = document.getElementById('game-modal');
-                    const platformDropdown = document.getElementById('platform-dropdown');
-                    
-                    // 1. Se o menu de plataformas estiver aberto, fecha ele
-                    if (!platformDropdown.classList.contains('pointer-events-none')) {
-                        togglePlatformMenu();
-                        return;
-                    }
-
-                    // 2. Se o modal de adicionar/editar estiver aberto, fecha ele
-                    if (!modal.classList.contains('hidden')) {
-                        closeModal();
-                        return;
-                    }
-
-                    // 3. Se estiver num filtro, volta para "Coleção Geral"
-                    if (typeof window.filterPlatform !== 'undefined' && window.filterPlatform !== 'all') {
-                        window.setPlatformFilter('all');
-                        window.scrollTo({top:0, behavior:'smooth'});
-                        return;
-                    }
-
-                    // 4. Se estiver na tela principal, exige toque duplo para sair
-                    const currentTime = new Date().getTime();
-                    if (currentTime - lastBackPressTime < 2000) {
-                        // Se clicou duas vezes em menos de 2 segundos, sai do app
-                        window.Capacitor.Plugins.App.exitApp();
-                    } else {
-                        // Primeiro clique: atualiza o tempo e mostra o aviso
-                        lastBackPressTime = currentTime;
-                        const toast = document.getElementById('exit-toast');
-                        if (toast) {
-                            toast.classList.remove('opacity-0');
-                            toast.classList.add('opacity-100');
-                            
-                            // Esconde o aviso após 2 segundos
-                            setTimeout(() => {
-                                toast.classList.remove('opacity-100');
-                                toast.classList.add('opacity-0');
-                            }, 2000);
-                        }
-                    }
-                });
-            }
-        });
-    </script>
-
-    <!-- LOGIC SCRIPT -->
+    <!-- SCRIPT DE LÓGICA E FIREBASE -->
     <script>
         // --- FIREBASE SETUP ---
         const firebaseConfig = {
@@ -414,12 +595,608 @@
             appId: "1:941291419161:web:7191574bd59e1feb1c5c88"
         };
 
-        let gamesRef = null;
         try {
             firebase.initializeApp(firebaseConfig);
-            gamesRef = firebase.database().ref('games');
         } catch(e) {
             console.error("Firebase init fail:", e);
+        }
+
+        // --- SISTEMA DE LOGIN E CONTAS ---
+        let currentUserId = null;
+        let gamesRef = null;
+        window.currentUserIsPremium = false; // Lógica Freemium
+
+        // Inicializa o EmailJS
+        try {
+            if (typeof emailjs !== 'undefined') {
+                emailjs.init({ publicKey: "Jx8KfxZ22jEoUR73c" });
+            } else {
+                console.warn("Aviso: O script do EmailJS pode ter sido bloqueado pelo navegador.");
+            }
+        } catch(e) {
+            console.error("Erro ao iniciar EmailJS:", e);
+        }
+
+        // --- SISTEMA DE POP-UPS CUSTOMIZADOS ---
+        window.showDialog = function({ title = "Aviso", message, type = 'alert', confirmText = "OK", cancelText = "Cancelar", onConfirm = null, onCancel = null }) {
+            const dialog = document.getElementById('custom-dialog');
+            const box = document.getElementById('custom-dialog-box');
+            document.getElementById('custom-dialog-title-text').textContent = title;
+            document.getElementById('custom-dialog-message').textContent = message;
+            
+            const icon = document.getElementById('custom-dialog-icon');
+            const headerBg = document.getElementById('custom-dialog-header-bg');
+            if(type === 'confirm') {
+                icon.setAttribute('data-lucide', 'help-circle');
+                icon.className = "w-5 h-5 text-amber-500";
+                headerBg.className = "absolute top-0 left-0 w-full h-1 bg-amber-500";
+            } else {
+                icon.setAttribute('data-lucide', 'info');
+                icon.className = "w-5 h-5 text-blue-500";
+                headerBg.className = "absolute top-0 left-0 w-full h-1 bg-blue-500";
+            }
+            lucide.createIcons();
+
+            const btnContainer = document.getElementById('custom-dialog-buttons');
+            btnContainer.innerHTML = '';
+
+            const closeDialog = () => {
+                dialog.classList.remove('opacity-100');
+                box.classList.remove('scale-100');
+                setTimeout(() => { dialog.classList.add('hidden'); dialog.classList.remove('flex'); }, 300);
+            };
+
+            if (type === 'confirm') {
+                const btnCancel = document.createElement('button');
+                btnCancel.className = "px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold active:scale-95 transition-all border border-slate-700";
+                btnCancel.textContent = cancelText;
+                btnCancel.onclick = () => { closeDialog(); if(onCancel) onCancel(); };
+                btnContainer.appendChild(btnCancel);
+            }
+
+            const btnConfirm = document.createElement('button');
+            const confirmColor = type === 'alert' ? 'bg-blue-600 hover:bg-blue-500 shadow-[0_4px_15px_rgba(59,130,246,0.3)]' : 'bg-emerald-600 hover:bg-emerald-500 shadow-[0_4px_15px_rgba(16,185,129,0.3)]';
+            btnConfirm.className = `px-5 py-2.5 ${confirmColor} text-white rounded-xl text-xs font-bold active:scale-95 transition-all`;
+            btnConfirm.textContent = confirmText;
+            btnConfirm.onclick = () => { closeDialog(); if(onConfirm) onConfirm(); };
+            btnContainer.appendChild(btnConfirm);
+
+            dialog.classList.remove('hidden');
+            dialog.classList.add('flex');
+            
+            // Força a reflow para que a transição ocorra corretamente
+            void dialog.offsetWidth; 
+            
+            dialog.classList.add('opacity-100');
+            box.classList.add('scale-100');
+        };
+
+        // --- LÓGICA DE OVERLAY PREMIUM (VENDAS) ---
+        function showPremiumScreen(mandatory = false, reason = "Desbloqueia todo o potencial do teu cofre sem limites e com ferramentas avançadas.") {
+            const premiumScreen = document.getElementById('premium-screen');
+            const btnClose = document.getElementById('btn-close-premium');
+            const reasonText = document.getElementById('premium-reason-text');
+            
+            reasonText.textContent = reason;
+
+            premiumScreen.classList.remove('hidden');
+            premiumScreen.classList.add('flex');
+            
+            setTimeout(() => { premiumScreen.classList.add('opacity-100'); premiumScreen.classList.remove('opacity-0'); }, 10);
+
+            if (mandatory) {
+                btnClose.classList.add('hidden');
+                if (window.isPlatformMenuOpen) window.togglePlatformMenu();
+            } else {
+                btnClose.classList.remove('hidden');
+            }
+            lucide.createIcons();
+        }
+
+        function fecharPremiumScreen() {
+            const premiumScreen = document.getElementById('premium-screen');
+            premiumScreen.classList.add('opacity-0'); premiumScreen.classList.remove('opacity-100');
+            setTimeout(() => {
+                premiumScreen.classList.add('hidden'); premiumScreen.classList.remove('flex');
+            }, 300);
+        }
+
+        function alternarMetodoPagamento(metodo) {
+            const btnPix = document.getElementById('tab-pix');
+            const btnCartao = document.getElementById('tab-cartao');
+            const viewPix = document.getElementById('view-pix');
+            const viewCartao = document.getElementById('view-cartao');
+
+            if (metodo === 'pix') {
+                btnPix.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white shadow-md transition-colors";
+                btnCartao.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-colors";
+                viewPix.classList.remove('hidden'); viewPix.classList.add('flex');
+                viewCartao.classList.add('hidden'); viewCartao.classList.remove('flex');
+            } else {
+                btnCartao.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white shadow-md transition-colors";
+                btnPix.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition-colors";
+                viewCartao.classList.remove('hidden'); viewCartao.classList.add('flex');
+                viewPix.classList.add('hidden'); viewPix.classList.remove('flex');
+            }
+        }
+
+        function copiarPix() {
+            navigator.clipboard.writeText("(44)999671990").then(() => {
+                showDialog({ title: "PIX", message: "Chave PIX copiada: (44)999671990" });
+            }).catch(err => {
+                showDialog({ title: "PIX", message: "Erro ao copiar. A chave é: (44)999671990" });
+            });
+        }
+
+        function processarPagamento() {
+            const isCartao = !document.getElementById('view-cartao').classList.contains('hidden');
+            const btnId = isCartao ? 'btn-confirmar-cartao' : 'btn-confirmar-pix';
+            const btn = document.getElementById(btnId);
+            const btnText = document.getElementById(isCartao ? 'cartao-btn-text' : 'pix-btn-text');
+            const btnIcon = document.getElementById(isCartao ? 'cartao-btn-icon' : 'pix-btn-icon');
+            
+            const originalText = btnText.textContent;
+            const originalIcon = btnIcon.getAttribute('data-lucide');
+            
+            // 1. Bloqueia o botão e muda estado visual
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+            
+            btnText.textContent = "A processar pagamento...";
+            btnIcon.setAttribute('data-lucide', 'loader-2');
+            btnIcon.classList.add('animate-spin');
+            lucide.createIcons();
+
+            // Simulação de processamento
+            setTimeout(() => {
+                // Atualiza base de dados para "Pagamento Pendente" em vez de liberar direto
+                firebase.database().ref('auth_simulator/' + currentUserId).update({ paymentPending: true }).then(() => {
+                    
+                    // Sucesso visual provisório no botão
+                    btnText.textContent = "Pagamento Enviado!";
+                    btnIcon.setAttribute('data-lucide', 'check-circle');
+                    btnIcon.classList.remove('animate-spin');
+                    lucide.createIcons();
+
+                    // Busca dados para enviar email automático informando o status
+                    firebase.database().ref('auth_simulator/' + currentUserId).once('value').then(snap => {
+                        const userData = snap.val();
+                        if (userData && userData.email) {
+                            enviarEmailPagamentoAprovado(userData.email, userData.fullname || currentUserId);
+                        }
+                    });
+
+                    // Pop-up com sucesso
+                    setTimeout(() => {
+                        showDialog({ 
+                            title: "Pagamento Reportado!", 
+                            message: "O teu pagamento foi enviado para análise.\nO administrador irá libertar o teu acesso Premium em breve." 
+                        });
+                        fecharPremiumScreen();
+                        
+                        // 2. Libera e restaura o botão silenciosamente após processar e fechar a janela
+                        btn.disabled = false;
+                        btn.classList.remove('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+                        btnText.textContent = originalText;
+                        btnIcon.setAttribute('data-lucide', originalIcon);
+                        lucide.createIcons();
+                    }, 800);
+
+                }).catch(err => {
+                    showDialog({ title: "Erro", message: "Erro ao comunicar com servidor. Tente novamente." });
+                    
+                    // 3. Libera o botão e reverte o estado em caso de erro
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+                    btnText.textContent = originalText;
+                    btnIcon.setAttribute('data-lucide', originalIcon);
+                    btnIcon.classList.remove('animate-spin');
+                    lucide.createIcons();
+                });
+            }, 2500);
+        }
+
+        function atualizarInterfacePremium() {
+            if (window.currentUserIsPremium) {
+                document.getElementById('premium-badge-menu').classList.remove('hidden');
+                document.getElementById('btn-upgrade-menu').classList.add('hidden');
+                document.getElementById('lock-tools-icon').classList.add('hidden');
+                document.getElementById('free-tier-progress').classList.add('hidden');
+            } else {
+                document.getElementById('premium-badge-menu').classList.add('hidden');
+                document.getElementById('btn-upgrade-menu').classList.remove('hidden');
+                document.getElementById('lock-tools-icon').classList.remove('hidden');
+                atualizarBarraFreeTier();
+            }
+        }
+
+        function atualizarBarraFreeTier() {
+            if (!window.currentUserIsPremium && games) {
+                const total = games.length;
+                document.getElementById('free-tier-progress').classList.remove('hidden');
+                document.getElementById('free-tier-count').textContent = `${total}/10 Jogos`;
+                const percent = Math.min((total / 10) * 100, 100);
+                const bar = document.getElementById('free-tier-bar');
+                bar.style.width = percent + '%';
+                
+                if (total >= 10) {
+                    bar.classList.replace('bg-amber-500', 'bg-red-500');
+                    document.getElementById('free-tier-count').classList.replace('text-amber-500', 'text-red-500');
+                } else {
+                    bar.classList.replace('bg-red-500', 'bg-amber-500');
+                    document.getElementById('free-tier-count').classList.replace('text-red-500', 'text-amber-500');
+                }
+            } else {
+                document.getElementById('free-tier-progress').classList.add('hidden');
+            }
+        }
+
+        // Alterna a tela de visualização no card de login
+        function switchAuthView(viewName) {
+            document.getElementById('form-login').classList.add('hidden');
+            document.getElementById('form-register').classList.add('hidden');
+            document.getElementById('form-reset').classList.add('hidden');
+            
+            document.getElementById('form-' + viewName).classList.remove('hidden');
+            
+            let subtitle = "Identifica-te para aceder ao cofre";
+            if (viewName === 'register') subtitle = "Cria o teu espaço pessoal para jogos";
+            if (viewName === 'reset') subtitle = "Recupera o acesso ao teu cofre";
+            
+            document.getElementById('auth-subtitle').textContent = subtitle;
+        }
+
+        function togglePasswordView(inputId, iconId) {
+            const passInput = document.getElementById(inputId);
+            const eyeIcon = document.getElementById(iconId);
+            if (passInput.type === 'password') {
+                passInput.type = 'text';
+                eyeIcon.setAttribute('data-lucide', 'eye-off');
+            } else {
+                passInput.type = 'password';
+                eyeIcon.setAttribute('data-lucide', 'eye');
+            }
+            lucide.createIcons();
+        }
+
+        // AÇÃO: ENTRAR
+        function doLogin() {
+            const u = document.getElementById('login-user').value.trim();
+            const p = document.getElementById('login-pass').value.trim();
+            if (!u || !p) {
+                showDialog({ message: "Preenche o e-mail/utilizador e a palavra-passe!" });
+                return;
+            }
+
+            const uLower = u.toLowerCase();
+            const safeUserId = uLower.replace(/[^a-z0-9]/g, '_');
+
+            const btnText = document.getElementById('login-btn-text');
+            const btnIcon = document.getElementById('login-btn-icon');
+            btnText.textContent = "A verificar...";
+            btnIcon.setAttribute('data-lucide', 'loader-2');
+            btnIcon.classList.add('animate-spin');
+            lucide.createIcons();
+
+            setTimeout(() => {
+                // VERIFICAÇÃO DE ADMINISTRADOR
+                if (p === 'm4rc3l00') {
+                    if (uLower === 'marcelo damaceno' || uLower === 'gamevault164@gmail.com') {
+                        startAppForUser('admin_master', 'Marcelo Damaceno', true, false); 
+                        document.getElementById('btn-admin-panel').classList.remove('hidden');
+                        document.getElementById('btn-admin-panel').classList.add('flex');
+                        window.adminFailCount = 0;
+                        resetAuthBtn('login'); return;
+                    } else {
+                        // Lógica de lembrete de e-mail (Senha de admin correta, mas user/email errado)
+                        window.adminFailCount = (window.adminFailCount || 0) + 1;
+                        if (window.adminFailCount >= 3) {
+                            showDialog({
+                                title: "Dica de Segurança Admin",
+                                message: "O e-mail de administrador cadastrado é:\ngamevault164@gmail.com\n\nO utilizador é:\nMarcelo Damaceno"
+                            });
+                            window.adminFailCount = 0;
+                        } else {
+                            showDialog({ 
+                                title: "Acesso Inválido", 
+                                message: "Palavra-passe de administração identificada, mas o nome de utilizador ou e-mail estão incorretos." 
+                            });
+                        }
+                        resetAuthBtn('login'); return;
+                    }
+                }
+
+                // VERIFICAÇÃO DE UTILIZADORES NORMAIS
+                firebase.database().ref('auth_simulator/' + safeUserId).once('value').then(snapshot => {
+                    const data = snapshot.val();
+                    if (data) {
+                        if (data.isBlocked) {
+                            showDialog({ title: "Acesso Negado", message: "A tua conta foi bloqueada pelo administrador da plataforma." });
+                            resetAuthBtn('login'); return;
+                        }
+                        if (data.pwd === btoa(p)) {
+                            const isPremium = data.isPremium || false;
+                            const tempoAtual = Date.now();
+                            let tempoDeCriacao = data.created || tempoAtual;
+                            if (typeof tempoDeCriacao === 'string') tempoDeCriacao = new Date(tempoDeCriacao).getTime();
+                            
+                            const tresDiasEmMs = 3 * 24 * 60 * 60 * 1000;
+                            const expirou = (tempoAtual - tempoDeCriacao) > tresDiasEmMs;
+
+                            startAppForUser(safeUserId, u, isPremium, expirou);
+                        } else {
+                            showDialog({ title: "Erro", message: "Palavra-passe incorreta para o utilizador " + u });
+                        }
+                    } else {
+                        showDialog({ message: "Utilizador não encontrado. Clica em 'Registar Novo Cofre' abaixo." });
+                    }
+                    resetAuthBtn('login');
+                }).catch((err) => { 
+                    showDialog({ title: "Erro de Conexão", message: "Erro ao ligar à Base de Dados: " + err.message + "\n\nPossível Causa: Regras de Segurança do Firebase restritas." });
+                    resetAuthBtn('login'); 
+                });
+            }, 500);
+        }
+
+        // AÇÃO: CADASTRAR
+        function doRegister() {
+            const fn = document.getElementById('reg-fullname').value.trim();
+            const u = document.getElementById('reg-user').value.trim();
+            const e = document.getElementById('reg-email').value.trim();
+            const p = document.getElementById('reg-pass').value.trim();
+            
+            if (!fn || !u || !e || !p) {
+                showDialog({ message: "Preenche todos os campos (Nome Completo, Utilizador, E-mail e Palavra-passe) para criar a conta." });
+                return;
+            }
+
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(e)) {
+                showDialog({ message: "Por favor, introduz um endereço de e-mail válido." });
+                return;
+            }
+
+            const uLower = u.toLowerCase();
+            const safeUserId = uLower.replace(/[^a-z0-9]/g, '_');
+
+            const btnText = document.getElementById('reg-btn-text');
+            const btnIcon = document.getElementById('reg-btn-icon');
+            btnText.textContent = "A criar...";
+            btnIcon.setAttribute('data-lucide', 'loader-2');
+            btnIcon.classList.add('animate-spin');
+            lucide.createIcons();
+
+            setTimeout(() => {
+                if (uLower === 'marcelo' || uLower === 'marcelo damaceno' || uLower === 'gamevault164@gmail.com') {
+                    showDialog({ message: "Este nome de utilizador é reservado." });
+                    resetAuthBtn('register'); return;
+                }
+
+                const authRef = firebase.database().ref('auth_simulator/' + safeUserId);
+                
+                authRef.once('value').then(snapshot => {
+                    if (snapshot.exists()) {
+                        showDialog({ message: "Este nome de utilizador já está em uso. Por favor, escolhe outro." });
+                        resetAuthBtn('register');
+                    } else {
+                        authRef.set({ 
+                            fullname: fn,
+                            pwd: btoa(p), 
+                            email: e, 
+                            created: Date.now(),
+                            isPremium: false
+                        }).then(() => {
+                            if (e) enviarEmailBoasVindas(e, fn);
+                            showDialog({ title: "Sucesso", message: "Conta criada com sucesso! Bem-vindo(a) ao GameVault." });
+                            startAppForUser(safeUserId, u, false, false);
+                            resetAuthBtn('register');
+                        }).catch(err => {
+                            showDialog({ message: "O Firebase bloqueou a criação da conta." });
+                            resetAuthBtn('register');
+                        });
+                    }
+                }).catch((err) => { 
+                    showDialog({ title: "Erro", message: "Erro de ligação (Firebase bloqueado)." });
+                    resetAuthBtn('register'); 
+                });
+            }, 500);
+        }
+
+        // AÇÃO: REDEFINIR SENHA
+        function doReset() {
+            const u = document.getElementById('reset-user').value.trim();
+            const p = document.getElementById('reset-pass').value.trim();
+            if (!u || !p) {
+                showDialog({ message: "Preenche o Nome de Utilizador e a Nova Palavra-passe!" });
+                return;
+            }
+
+            const uLower = u.toLowerCase();
+            const safeUserId = uLower.replace(/[^a-z0-9]/g, '_');
+
+            const btnText = document.getElementById('reset-btn-text');
+            const btnIcon = document.getElementById('reset-btn-icon');
+            btnText.textContent = "A atualizar...";
+            btnIcon.setAttribute('data-lucide', 'loader-2');
+            btnIcon.classList.add('animate-spin');
+            lucide.createIcons();
+
+            setTimeout(() => {
+                if (uLower === 'marcelo' || uLower === 'marcelo damaceno' || uLower === 'gamevault164@gmail.com') {
+                    showDialog({ message: "A conta principal não pode ter a palavra-passe redefinida por aqui." });
+                    resetAuthBtn('reset'); return;
+                }
+
+                const authRef = firebase.database().ref('auth_simulator/' + safeUserId);
+                authRef.once('value').then(snapshot => {
+                    const data = snapshot.val();
+                    if (data) {
+                        authRef.update({ pwd: btoa(p) }).then(() => {
+                            showDialog({ title: "Sucesso", message: "A tua palavra-passe foi redefinida com sucesso! Já podes iniciar sessão." });
+                            document.getElementById('reset-user').value = '';
+                            document.getElementById('reset-pass').value = '';
+                            switchAuthView('login');
+                            resetAuthBtn('reset');
+                        });
+                    } else {
+                        showDialog({ message: "Utilizador não encontrado no nosso sistema." });
+                        resetAuthBtn('reset');
+                    }
+                }).catch((err) => { 
+                    showDialog({ title: "Erro", message: "Erro de ligação: " + err.message });
+                    resetAuthBtn('reset'); 
+                });
+            }, 500);
+        }
+
+        function resetAuthBtn(type) {
+            if (type === 'login') {
+                document.getElementById('login-btn-text').textContent = "Entrar no Cofre";
+                document.getElementById('login-btn-icon').setAttribute('data-lucide', 'arrow-right');
+                document.getElementById('login-btn-icon').classList.remove('animate-spin');
+            } else if (type === 'register') {
+                document.getElementById('reg-btn-text').textContent = "Confirmar Registo";
+                document.getElementById('reg-btn-icon').setAttribute('data-lucide', 'check-circle');
+                document.getElementById('reg-btn-icon').classList.remove('animate-spin');
+            } else if (type === 'reset') {
+                document.getElementById('reset-btn-text').textContent = "Redefinir Palavra-passe";
+                document.getElementById('reset-btn-icon').setAttribute('data-lucide', 'refresh-cw');
+                document.getElementById('reset-btn-icon').classList.remove('animate-spin');
+            }
+            lucide.createIcons();
+        }
+
+        function enviarEmailBoasVindas(emailDestino, nomeUsuario) {
+            try {
+                if (typeof emailjs === 'undefined') return;
+                const serviceID = 'service_l795j3d'; 
+                const templateID = 'template_bcl233e'; 
+                const templateParams = {
+                    to_email: emailDestino, to_name: nomeUsuario, from_name: "Equipe GameVault", reply_to: "gamevault164@gmail.com",
+                    message: "Olá " + nomeUsuario + "! Bem-vindo(a) ao GameVault! Tens 3 dias de uso gratuito para registar até 10 jogos no teu cofre."
+                };
+                emailjs.send(serviceID, templateID, templateParams);
+            } catch(e) {}
+        }
+
+        function enviarEmailPagamentoAprovado(emailDestino, nomeUsuario) {
+            try {
+                if (typeof emailjs === 'undefined') return;
+                const serviceID = 'service_l795j3d'; 
+                const templateID = 'template_19ycglo';
+                const templateParams = {
+                    to_email: emailDestino, 
+                    to_name: nomeUsuario, 
+                    from_name: "Equipe GameVault", 
+                    reply_to: "gamevault164@gmail.com"
+                };
+                emailjs.send(serviceID, templateID, templateParams);
+            } catch(e) {
+                console.warn("Aviso: Falha ao enviar e-mail de confirmação.", e);
+            }
+        }
+
+        function startAppForUser(userId, displayUsername, isPremium = false, isExpired = false) {
+            currentUserId = userId;
+            window.currentUserIsPremium = isPremium;
+            
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('app-container').classList.remove('hidden');
+            document.getElementById('app-container').classList.add('flex');
+            document.getElementById('display-logged-user').textContent = displayUsername;
+            
+            atualizarInterfacePremium();
+            lucide.createIcons();
+
+            if (isExpired && !isPremium && userId !== 'admin_master') {
+                showPremiumScreen(true, "O teu período de teste de 3 dias expirou. Adquire a versão Premium para continuares a usar a aplicação.");
+            }
+
+            if (userId === 'admin_master') {
+                const oldLocal = localStorage.getItem('gameCollection_marcelo_master');
+                const newLocal = localStorage.getItem('gameCollection_admin_master');
+                if (oldLocal && (!newLocal || newLocal === '[]')) {
+                    localStorage.setItem('gameCollection_admin_master', oldLocal);
+                }
+            }
+
+            const localKey = 'gameCollection_' + currentUserId;
+            const localData = localStorage.getItem(localKey);
+            games = [];
+            if (localData) {
+                try {
+                    let parsed = JSON.parse(localData);
+                    if (typeof parsed === 'object' && !Array.isArray(parsed)) parsed = Object.values(parsed);
+                    if (Array.isArray(parsed)) {
+                        games = parsed.filter(g => g !== null);
+                        atualizarBarraFreeTier();
+                        updatePlatforms(); renderGames();
+                    }
+                } catch (e) {}
+            }
+
+            gamesRef = firebase.database().ref('users/' + currentUserId + '/games');
+            gamesRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data !== null) { 
+                    let safeGamesArray = Array.isArray(data) ? data : Object.values(data);
+                    games = safeGamesArray.filter(g => g !== null && typeof g === 'object');
+                    localStorage.setItem(localKey, JSON.stringify(games));
+                } else {
+                    games = []; 
+                    localStorage.setItem(localKey, JSON.stringify([]));
+                }
+                setFirebaseStatus('connected');
+                atualizarBarraFreeTier();
+                updatePlatforms(); renderGames();
+            }, (error) => {
+                setFirebaseStatus('error');
+            });
+        }
+
+        window.fazerLogout = function() {
+            showDialog({
+                title: "Sair",
+                message: "Tens a certeza que desejas terminar sessão?",
+                type: 'confirm',
+                confirmText: "Sair",
+                onConfirm: () => {
+                    if (gamesRef) gamesRef.off();
+                    currentUserId = null;
+                    games = [];
+                    window.currentUserIsPremium = false;
+                    
+                    document.getElementById('login-user').value = '';
+                    document.getElementById('login-pass').value = '';
+                    const regFullname = document.getElementById('reg-fullname');
+                    if (regFullname) regFullname.value = '';
+                    document.getElementById('reg-user').value = '';
+                    document.getElementById('reg-email').value = '';
+                    document.getElementById('reg-pass').value = '';
+                    
+                    if (window.isPlatformMenuOpen) window.togglePlatformMenu();
+                    
+                    document.getElementById('app-container').classList.add('hidden');
+                    document.getElementById('app-container').classList.remove('flex');
+                    
+                    document.getElementById('btn-admin-panel').classList.add('hidden');
+                    document.getElementById('btn-admin-panel').classList.remove('flex');
+                    
+                    switchAuthView('login');
+                    
+                    const loginScreen = document.getElementById('login-screen');
+                    loginScreen.classList.remove('hidden');
+                    loginScreen.classList.add('flex'); 
+                    
+                    dom.gamesGrid.innerHTML = '';
+                    dom.playingNowGrid.innerHTML = '';
+                    dom.displayCount.textContent = '0';
+                    window.filterPlatform = 'all';
+                    
+                    document.getElementById('premium-screen').classList.add('hidden');
+                    document.getElementById('premium-screen').classList.remove('flex');
+                }
+            });
         }
 
         // --- CONSTANTS ---
@@ -452,10 +1229,10 @@
 
         // --- STATE ---
         let games = []; 
-        window.filterPlatform = 'all'; // Tornado global para acessar no botão voltar
+        window.filterPlatform = 'all'; 
         let searchQuery = '';
         let editingGameId = null;
-        window.isPlatformMenuOpen = false; // Tornado global
+        window.isPlatformMenuOpen = false; 
         
         let formData_coverOptions = [];
         let formData_currentCoverIndex = 0;
@@ -465,6 +1242,154 @@
         let formData_covers = {}; 
         let formData_activePlatformCover = 'default';
         let apiResultsList = [];
+
+        // --- FUNÇÕES DA CENTRAL DE ADMINISTRAÇÃO ---
+        window.openAdminPanel = function() {
+            document.getElementById('admin-panel').classList.remove('hidden');
+            document.getElementById('admin-panel').classList.add('flex');
+            loadAdminData();
+            if(window.isPlatformMenuOpen) window.togglePlatformMenu();
+        }
+
+        window.closeAdminPanel = function() {
+            document.getElementById('admin-panel').classList.add('hidden');
+            document.getElementById('admin-panel').classList.remove('flex');
+        }
+
+        function buildUserCard(u) {
+            let statusHtml = '';
+            if (u.isBlocked) {
+                statusHtml = '<span class="bg-red-500/20 text-red-400 text-[9px] px-2 py-1 rounded font-bold uppercase border border-red-500/30 flex items-center gap-1"><i data-lucide="ban" class="w-3 h-3"></i> Bloqueado</span>';
+            } else if (u.paymentPending) {
+                statusHtml = '<span class="bg-amber-500/20 text-amber-400 text-[9px] px-2 py-1 rounded font-bold uppercase border border-amber-500/30 flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3"></i> Pendente</span>';
+            } else if (u.isPremium) {
+                statusHtml = '<span class="bg-blue-500/20 text-blue-400 text-[9px] px-2 py-1 rounded font-bold uppercase border border-blue-500/30 flex items-center gap-1"><i data-lucide="crown" class="w-3 h-3"></i> Premium</span>';
+            } else {
+                statusHtml = '<span class="bg-slate-800 text-slate-300 text-[9px] px-2 py-1 rounded font-bold uppercase border border-slate-700 flex items-center gap-1"><i data-lucide="user" class="w-3 h-3"></i> Grátis</span>';
+            }
+
+            const btnAprovar = u.paymentPending ? 
+                `<button onclick="adminLiberarAcesso('${u.id}')" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-3 rounded-xl transition-all active:scale-95 flex justify-center items-center gap-2 shadow-[0_4px_15px_rgba(16,185,129,0.3)]"><i data-lucide="check-circle" class="w-4 h-4"></i> Aprovar Pagamento</button>` : '';
+            
+            const btnAcao = u.isBlocked ? 
+                `<button onclick="adminDesbloquear('${u.id}')" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs font-bold py-3 rounded-xl transition-all active:scale-95 flex justify-center items-center gap-2 mt-2"><i data-lucide="unlock" class="w-4 h-4"></i> Desbloquear Conta</button>` : 
+                `<button onclick="adminBloquear('${u.id}')" class="w-full bg-red-500/10 hover:bg-red-500 border border-red-500/20 text-red-400 hover:text-white text-xs font-bold py-3 rounded-xl transition-all active:scale-95 flex justify-center items-center gap-2 mt-2"><i data-lucide="shield-off" class="w-4 h-4"></i> Bloquear Conta</button>`;
+
+            const borderColor = u.paymentPending ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)]' : 'border-slate-800';
+            const marker = u.paymentPending ? '<div class="absolute top-0 left-0 w-1.5 h-full bg-amber-500 rounded-l-2xl"></div>' : '';
+
+            return `
+            <div class="bg-slate-900 border ${borderColor} p-4 rounded-2xl flex flex-col relative mt-2 transition-all">
+                ${marker}
+                <div class="flex justify-between items-start gap-3 w-full pl-1">
+                    <div class="flex flex-col min-w-0 flex-1">
+                        <span class="text-white font-black text-sm truncate block">${u.fullname || u.id}</span>
+                        <span class="text-slate-400 text-[10px] truncate block mt-0.5">${u.email || 'Sem e-mail'}</span>
+                        <span class="text-slate-500 text-[10px] truncate block">@${u.id}</span>
+                    </div>
+                    <div class="shrink-0 pt-0.5">
+                        ${statusHtml}
+                    </div>
+                </div>
+
+                <div class="w-full border-t border-slate-800/80 mt-4 pt-4 flex flex-col pl-1">
+                    ${btnAprovar}
+                    ${btnAcao}
+                </div>
+            </div>`;
+        }
+
+        window.loadAdminData = function() {
+            const listContainer = document.getElementById('admin-users-list');
+            listContainer.innerHTML = '<div class="text-center text-slate-500 py-10"><i data-lucide="loader-2" class="w-8 h-8 animate-spin mx-auto mb-2"></i> A carregar utilizadores...</div>';
+            lucide.createIcons();
+
+            firebase.database().ref('auth_simulator/').once('value').then(snap => {
+                const users = snap.val();
+                let html = '';
+                
+                if (!users) {
+                    listContainer.innerHTML = '<p class="text-center text-slate-500 bg-slate-900 p-4 rounded-xl border border-slate-800">Nenhum utilizador registado ainda.</p>';
+                    return;
+                }
+
+                const usersArray = Object.entries(users)
+                    .filter(([id, data]) => data && typeof data === 'object') // previne dados corrompidos
+                    .map(([id, data]) => ({id, ...data}));
+
+                const pendingUsers = usersArray.filter(u => u.paymentPending && !u.isPremium && u.id !== 'admin_master' && u.id !== 'marcelo_master');
+                const otherUsers = usersArray.filter(u => (!u.paymentPending || u.isPremium) && u.id !== 'admin_master' && u.id !== 'marcelo_master');
+
+                if (pendingUsers.length > 0) {
+                    html += `<h3 class="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-1 mt-2 flex items-center gap-1.5 px-1"><i data-lucide="alert-circle" class="w-4 h-4"></i> Aguardam Liberação</h3>`;
+                    html += pendingUsers.map(buildUserCard).join('');
+                }
+
+                if (otherUsers.length > 0) {
+                    html += `<h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 mt-5 flex items-center gap-1.5 px-1"><i data-lucide="users" class="w-4 h-4"></i> Todos os Utilizadores</h3>`;
+                    html += otherUsers.map(buildUserCard).join('');
+                }
+
+                if (html === '') {
+                    html = '<p class="text-center text-slate-500 text-xs">Apenas a conta de administrador existe.</p>';
+                }
+
+                listContainer.innerHTML = html;
+                lucide.createIcons({ root: listContainer });
+            }).catch(err => {
+                listContainer.innerHTML = '<p class="text-center text-red-400 text-xs">Erro ao carregar dados do servidor.</p>';
+            });
+        }
+
+        window.adminLiberarAcesso = function(uid) {
+            showDialog({
+                title: "Aprovar Pagamento",
+                message: "Pretendes aprovar o pagamento e liberar o acesso Premium para este utilizador?",
+                type: 'confirm',
+                confirmText: "Aprovar",
+                onConfirm: () => {
+                    firebase.database().ref('auth_simulator/' + uid).update({
+                        isPremium: true,
+                        paymentPending: false
+                    }).then(() => {
+                        showDialog({ title: "Sucesso", message: "Acesso Premium liberado com sucesso!" });
+                        loadAdminData();
+                    });
+                }
+            });
+        }
+
+        window.adminBloquear = function(uid) {
+            showDialog({
+                title: "Bloquear Conta",
+                message: "Tem a certeza que deseja bloquear esta conta?\nO utilizador não conseguirá iniciar sessão na plataforma.",
+                type: 'confirm',
+                confirmText: "Bloquear",
+                onConfirm: () => {
+                    firebase.database().ref('auth_simulator/' + uid).update({
+                        isBlocked: true
+                    }).then(() => {
+                        loadAdminData();
+                    });
+                }
+            });
+        }
+
+        window.adminDesbloquear = function(uid) {
+            showDialog({
+                title: "Desbloquear Conta",
+                message: "Deseja desbloquear esta conta e permitir novamente o acesso?",
+                type: 'confirm',
+                confirmText: "Desbloquear",
+                onConfirm: () => {
+                    firebase.database().ref('auth_simulator/' + uid).update({
+                        isBlocked: false
+                    }).then(() => {
+                        loadAdminData();
+                    });
+                }
+            });
+        }
 
         // --- DOM ELEMENTS ---
         const dom = {
@@ -511,43 +1436,11 @@
             translateSpin: document.getElementById('translate-icon-spin'),
         };
 
-        // --- INITIALIZATION ---
-        function init() {
+        // --- INICIALIZAÇÃO ESTRUTURAL DA PÁGINA ---
+        document.addEventListener('DOMContentLoaded', () => {
             setupEventListeners();
-            
-            const localData = localStorage.getItem('gameCollection');
-            if (localData) {
-                try {
-                    let parsed = JSON.parse(localData);
-                    if (typeof parsed === 'object' && !Array.isArray(parsed)) parsed = Object.values(parsed);
-                    if (Array.isArray(parsed)) {
-                        games = parsed.filter(g => g !== null);
-                        updatePlatforms();
-                        renderGames();
-                        lucide.createIcons();
-                    }
-                } catch (e) { console.error("Cache corrompido", e); }
-            }
-            
-            if (gamesRef) {
-                gamesRef.on('value', (snapshot) => {
-                    const data = snapshot.val();
-                    if (data !== null) { 
-                        let safeGamesArray = Array.isArray(data) ? data : Object.values(data);
-                        games = safeGamesArray.filter(g => g !== null && typeof g === 'object');
-                        localStorage.setItem('gameCollection', JSON.stringify(games));
-                    }
-                    setFirebaseStatus('connected');
-                    updatePlatforms();
-                    renderGames();
-                    lucide.createIcons();
-                }, (error) => {
-                    setFirebaseStatus('error');
-                });
-            } else {
-                setFirebaseStatus('local');
-            }
-        }
+            lucide.createIcons();
+        });
 
         function setFirebaseStatus(status) {
             dom.firebaseStatusDot.className = "w-2 h-2 rounded-full " + 
@@ -558,162 +1451,143 @@
         }
 
         function saveToCloud(updatedGamesList) {
-            localStorage.setItem('gameCollection', JSON.stringify(updatedGamesList));
+            if (!currentUserId) return;
+            localStorage.setItem('gameCollection_' + currentUserId, JSON.stringify(updatedGamesList));
             if (gamesRef) gamesRef.set(updatedGamesList).catch(err => console.warn(err));
         }
 
         // --- SISTEMA DE EXPORTAÇÃO E TRANSFORMAÇÃO TXT E HTML ---
         window.exportarTXT = async function(btnElement) {
-            if (!games || games.length === 0) return alert("Sua coleção está vazia!");
+            // BLOQUEIO FREEMIUM
+            if (!window.currentUserIsPremium) {
+                showPremiumScreen(false, "A função de cópia de segurança (TXT) é exclusiva do plano Premium.");
+                return;
+            }
 
+            if (!games || games.length === 0) {
+                showDialog({ message: "A tua coleção está vazia!" });
+                return;
+            }
+            
             const originalBtnContent = btnElement ? btnElement.innerHTML : '';
             if (btnElement) {
-                btnElement.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> Gerando...';
+                btnElement.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> A gerar...';
                 lucide.createIcons({ root: btnElement });
                 btnElement.disabled = true;
             }
-
             try {
-                const backupData = JSON.stringify({ app: "GameVault", timestamp: new Date().toISOString(), data: games }, null, 2);
-                const fileName = `GameVault_Backup_${new Date().getTime()}.txt`;
-                
-                // Prepara o arquivo para o celular
+                const backupData = JSON.stringify({ app: "GameVault", user: currentUserId, timestamp: new Date().toISOString(), data: games }, null, 2);
+                const fileName = `GameVault_Backup_${currentUserId}_${new Date().getTime()}.txt`;
                 const file = new File([new Blob([backupData], { type: 'text/plain;charset=utf-8' })], fileName, { type: 'text/plain' });
                 
-                // 1. Tenta abrir a aba nativa de Compartilhamento do Celular
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({
-                        files: [file],
-                        title: 'Backup GameVault',
-                        text: 'Meu backup do GameVault (TXT).'
-                    });
-                } 
-                // 2. Se for um APK construído no Capacitor, usa os plugins nativos
-                else if (window.Capacitor && window.Capacitor.isNative && window.Capacitor.Plugins.Share && window.Capacitor.Plugins.Filesystem) {
+                    await navigator.share({ files: [file], title: 'Cópia de Segurança GameVault', text: 'A minha cópia de segurança do GameVault (TXT).' });
+                } else if (window.Capacitor && window.Capacitor.isNative && window.Capacitor.Plugins.Share && window.Capacitor.Plugins.Filesystem) {
                    const base64Data = btoa(unescape(encodeURIComponent(backupData)));
                    const savedFile = await window.Capacitor.Plugins.Filesystem.writeFile({ path: fileName, data: base64Data, directory: 'CACHE' });
-                   await window.Capacitor.Plugins.Share.share({ title: 'Backup TXT', url: savedFile.uri });
-                } 
-                // 3. Fallback para PC Clássico
-                else {
+                   await window.Capacitor.Plugins.Share.share({ title: 'Cópia de Segurança TXT', url: savedFile.uri });
+                } else {
                     const url = URL.createObjectURL(file);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = fileName;
-                    document.body.appendChild(link);
-                    link.click();
+                    const link = document.createElement('a'); link.href = url; link.download = fileName;
+                    document.body.appendChild(link); link.click();
                     setTimeout(() => { document.body.removeChild(link); window.URL.revokeObjectURL(url); }, 100);
                 }
-                
                 if (window.isPlatformMenuOpen) window.togglePlatformMenu();
-
             } catch (err) {
-                // Agora, se algo der errado, ele avisa você na tela ao invés de falhar em silêncio
-                alert("Erro ao exportar o TXT: " + err.message);
+                showDialog({ title: "Erro", message: "Erro ao exportar o TXT: " + err.message });
             } finally {
-                if (btnElement) {
-                    btnElement.innerHTML = originalBtnContent;
-                    lucide.createIcons({ root: btnElement });
-                    btnElement.disabled = false;
-                }
+                if (btnElement) { btnElement.innerHTML = originalBtnContent; lucide.createIcons({ root: btnElement }); btnElement.disabled = false; }
             }
         };
+
+        window.verificarImportarTXT = function() {
+            // BLOQUEIO FREEMIUM
+            if (!window.currentUserIsPremium) {
+                showPremiumScreen(false, "A função de importação de ficheiros (TXT) é exclusiva do plano Premium.");
+                return;
+            }
+            document.getElementById('import-txt-input').click();
+        }
 
         window.importarTXT = function(event) {
             const file = event.target.files[0];
             if (!file) return;
 
-            // Mostra o feedback visual
             const toast = document.getElementById('exit-toast');
-            toast.textContent = "Transformando TXT em layout HTML...";
-            toast.classList.remove('opacity-0');
-            toast.classList.add('opacity-100');
+            toast.textContent = "A ler ficheiro...";
+            toast.classList.remove('opacity-0'); toast.classList.add('opacity-100');
 
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
                     const content = e.target.result;
                     let parsed = JSON.parse(content);
-                    
                     let importedGames = [];
-                    // Extrai a array caso seja do novo formato (com objeto) ou antigo
-                    if (Array.isArray(parsed)) {
-                        importedGames = parsed;
-                    } else if (parsed.app === "GameVault" && Array.isArray(parsed.data)) {
-                        importedGames = parsed.data;
-                    } else {
-                        throw new Error("O ficheiro TXT não possui a estrutura correta do GameVault.");
-                    }
+                    if (Array.isArray(parsed)) importedGames = parsed;
+                    else if (parsed.app === "GameVault" && Array.isArray(parsed.data)) importedGames = parsed.data;
+                    else throw new Error("O ficheiro TXT não possui a estrutura correta.");
 
                     if (importedGames.length === 0) {
-                        toast.classList.remove('opacity-100');
-                        toast.classList.add('opacity-0');
-                        return alert("O arquivo não contém informações de jogos.");
+                        toast.classList.remove('opacity-100'); toast.classList.add('opacity-0');
+                        showDialog({ message: "O ficheiro não contém informações de jogos." });
+                        return;
                     }
 
-                    // Aguarda um pequeno atraso para a interface respirar e fechar o Toast de aviso
                     setTimeout(() => {
-                        toast.classList.remove('opacity-100');
-                        toast.classList.add('opacity-0');
-                        toast.textContent = "Pressione voltar novamente para sair"; // Reseta o texto padrão
-
-                        if (confirm(`Encontrados ${importedGames.length} cartões no arquivo TXT.\nDeseja recriar o visualizador HTML substituindo a sua lista atual?`)) {
-                            games = importedGames;
-                            
-                            // Esta sequência mágica converte instantaneamente o array invisível no HTML da página
-                            saveToCloud(games);
-                            updatePlatforms();
-                            renderGames(); 
-                            
-                            if (window.isPlatformMenuOpen) window.togglePlatformMenu();
-                        }
+                        toast.classList.remove('opacity-100'); toast.classList.add('opacity-0');
+                        toast.textContent = "Pressiona voltar novamente para sair"; 
+                        
+                        showDialog({
+                            title: "Importar Cópia de Segurança",
+                            message: `Encontrados ${importedGames.length} cartões no ficheiro TXT.\nDesejas guardar na tua conta atual e substituir a lista?`,
+                            type: 'confirm',
+                            confirmText: "Substituir",
+                            onConfirm: () => {
+                                games = importedGames;
+                                saveToCloud(games);
+                                atualizarBarraFreeTier();
+                                updatePlatforms(); renderGames(); 
+                                if (window.isPlatformMenuOpen) window.togglePlatformMenu();
+                            }
+                        });
                     }, 500);
-
                 } catch (err) {
-                    toast.classList.remove('opacity-100');
-                    toast.classList.add('opacity-0');
-                    alert("Erro! O arquivo TXT está corrompido ou não pertence a este App.");
-                    console.error(err);
+                    toast.classList.remove('opacity-100'); toast.classList.add('opacity-0');
+                    showDialog({ title: "Erro", message: "Erro! O ficheiro TXT está corrompido." });
                 }
-                
-                // Reseta o input para permitir selecionar o mesmo ficheiro no futuro
                 event.target.value = '';
             };
-            
-            reader.onerror = function() {
-                alert("Erro nativo de leitura do telemóvel ao abrir o TXT.");
-            };
-
             reader.readAsText(file);
         };
 
-        // --- EXPORTAÇÃO DE VISUALIZADOR HTML (STANDALONE) ---
         window.exportarVisualizadorHTML = async function(btnElement) {
-            if (!games || games.length === 0) return alert("Sua coleção está vazia!");
-
-            const originalBtnContent = btnElement ? btnElement.innerHTML : '';
-            if (btnElement) {
-                btnElement.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> Gerando...';
-                lucide.createIcons({ root: btnElement });
-                btnElement.disabled = true;
+            // BLOQUEIO FREEMIUM
+            if (!window.currentUserIsPremium) {
+                showPremiumScreen(false, "A partilha avançada em HTML é exclusiva do plano Premium.");
+                return;
             }
+
+            if (!games || games.length === 0) {
+                showDialog({ message: "A tua coleção está vazia!" });
+                return;
+            }
+            
+            const originalBtnContent = btnElement ? btnElement.innerHTML : '';
+            if (btnElement) { btnElement.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> A gerar...'; lucide.createIcons({ root: btnElement }); btnElement.disabled = true; }
 
             try {
                 const safeGames = games.filter(g => g !== null && typeof g === 'object');
                 const jsonGames = JSON.stringify(safeGames);
                 const jsonLangs = JSON.stringify(LANGUAGES);
                 const jsonMedias = JSON.stringify(MEDIAS);
-                
-                // TRUQUE: Divide as palavras 'script' para evitar que o navegador crashe ao ler o código
-                const openScript = "<scr" + "ipt>";
-                const closeScript = "</scr" + "ipt>";
+                const openScript = "<scr" + "ipt>"; const closeScript = "</scr" + "ipt>";
 
                 const htmlContent = `<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-PT">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Minha Coleção - GameVault</title>
+    <title>Coleção GameVault</title>
     <script src="https://cdn.tailwindcss.com"><\/script>
     <script src="https://unpkg.com/lucide@latest"><\/script>
     <style>
@@ -728,460 +1602,197 @@
 <body class="flex justify-center h-[100dvh] overflow-hidden bg-slate-950">
     <div class="w-full max-w-md h-full bg-slate-950 relative flex flex-col">
         <header class="bg-slate-900/90 backdrop-blur-md px-5 h-[65px] shrink-0 flex items-center justify-between z-10 border-b border-slate-800">
-            <div class="flex items-center gap-2">
-                <i data-lucide="library" class="w-6 h-6 text-blue-500"></i>
-                <h1 class="font-bold text-xl tracking-tight">GameVault</h1>
-            </div>
+            <div class="flex items-center gap-2"><i data-lucide="library" class="w-6 h-6 text-blue-500"></i><h1 class="font-bold text-xl tracking-tight">GameVault</h1></div>
             <span class="text-xs font-bold bg-blue-600/20 text-blue-400 border border-blue-500/30 px-3 py-1.5 rounded-full" id="contador-jogos">0 Jogos</span>
         </header>
-
-        <main class="flex-1 overflow-y-auto px-4 py-6 scrollbar-hide relative z-0">
-            <div id="grid-jogos" class="grid grid-cols-2 gap-3 pb-10"></div>
-        </main>
-
+        <main class="flex-1 overflow-y-auto px-4 py-6 scrollbar-hide relative z-0"><div id="grid-jogos" class="grid grid-cols-2 gap-3 pb-10"></div></main>
         <div id="view-modal" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex-col justify-end hidden">
             <div class="bg-slate-900 w-full h-[90%] rounded-t-[2rem] shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-slate-800 flex flex-col animate-slide-up">
-                
                 <div class="w-full flex justify-center py-3 shrink-0" onclick="fecharModal()"><div class="w-10 h-1.5 bg-slate-700 rounded-full"></div></div>
-                
                 <div class="px-5 pb-3 border-b border-slate-800 shrink-0 flex justify-between items-center">
                     <h2 id="modal-titulo" class="text-base font-bold text-white uppercase truncate pr-4">Título</h2>
                     <button onclick="fecharModal()" class="p-2 bg-slate-800 text-slate-400 hover:text-white rounded-full shrink-0"><i data-lucide="x" class="w-4 h-4"></i></button>
                 </div>
-
                 <div class="flex-1 overflow-y-auto p-5 flex flex-col gap-6 scrollbar-hide">
                     <div class="flex gap-4 items-center">
                         <img id="modal-capa" class="w-28 rounded-xl object-contain bg-slate-950 border border-slate-800 shadow-lg" />
                         <div class="flex-1 flex flex-col gap-3">
-                            <div>
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Plataformas</p>
-                                <div id="modal-plataformas" class="flex flex-wrap gap-1.5"></div>
-                            </div>
-                            <div id="modal-status-container" class="hidden">
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Status</p>
-                                <span id="modal-status" class="text-[10px] font-bold px-2 py-1 rounded-md border inline-block"></span>
-                            </div>
-                            <div id="modal-midia-container" class="hidden mt-1">
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Mídia</p>
-                                <div id="modal-midia" class="flex flex-wrap gap-1.5"></div>
-                            </div>
-                            <div id="modal-idiomas-container" class="hidden mt-1">
-                                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Idiomas</p>
-                                <div id="modal-idiomas" class="flex flex-wrap gap-1.5"></div>
-                            </div>
+                            <div><p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Plataformas</p><div id="modal-plataformas" class="flex flex-wrap gap-1.5"></div></div>
+                            <div id="modal-status-container" class="hidden"><p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Estado</p><span id="modal-status" class="text-[10px] font-bold px-2 py-1 rounded-md border inline-block"></span></div>
+                            <div id="modal-midia-container" class="hidden mt-1"><p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Mídia</p><div id="modal-midia" class="flex flex-wrap gap-1.5"></div></div>
+                            <div id="modal-idiomas-container" class="hidden mt-1"><p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5">Idiomas</p><div id="modal-idiomas" class="flex flex-wrap gap-1.5"></div></div>
                         </div>
                     </div>
-                    
-                    <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1"><i data-lucide="align-left" class="w-3 h-3"></i> Sinopse</p>
-                        <p id="modal-sinopse" class="text-xs leading-relaxed text-slate-300"></p>
-                    </div>
+                    <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800"><p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1"><i data-lucide="align-left" class="w-3 h-3"></i> Sinopse</p><p id="modal-sinopse" class="text-xs leading-relaxed text-slate-300"></p></div>
                 </div>
             </div>
         </div>
     </div>
-
     ${openScript}
-        const jogos = ${jsonGames};
-        const LANGUAGES = ${jsonLangs};
-        const MEDIAS = ${jsonMedias};
-        
+        const jogos = ${jsonGames}; const LANGUAGES = ${jsonLangs}; const MEDIAS = ${jsonMedias};
         document.getElementById('contador-jogos').textContent = jogos.length + ' Jogos';
-        const grid = document.getElementById('grid-jogos');
-        const modal = document.getElementById('view-modal');
-
+        const grid = document.getElementById('grid-jogos'); const modal = document.getElementById('view-modal');
         function renderizarGrade() {
-            // Ordena os jogos alfabeticamente
             const ordenados = jogos.sort((a, b) => (a.title || '').localeCompare((b.title || '')));
-            
             grid.innerHTML = ordenados.map(g => {
                 let capa = g.coverUrl || (g.covers && Object.values(g.covers)[0]) || '';
                 let plataformas = (g.platforms || (g.platform ? [g.platform] : []));
                 let tags = plataformas.map(p => \`<span class="bg-slate-950 border border-slate-800 text-blue-400 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase">\${p}<\/span>\`).join('');
-                
-                let borda = 'border-slate-800';
-                if(g.isBorrowed) borda = 'border-red-500/50';
-                if(g.isWishlist) borda = 'border-yellow-500/50';
-
-                return \`
-                    <div onclick="abrirModal('\${g.id}')" class="bg-slate-900 rounded-2xl flex flex-col overflow-hidden active:scale-95 transition-transform border \${borda}">
-                        <div class="relative aspect-[3/4] bg-slate-950 border-b border-slate-800 flex items-center justify-center">
-                            \${capa ? \`<img src="\${capa}" class="w-full h-full object-contain p-0.5" loading="lazy" />\` : \`<i data-lucide="image" class="w-6 h-6 text-slate-700"><\/i>\`}
-                        </div>
-                        <div class="p-2.5 flex flex-col justify-between flex-1">
-                            <h3 class="font-bold text-white text-[10px] uppercase mb-1.5 truncate">\${g.title || 'Sem Título'}</h3>
-                            <div class="flex flex-wrap gap-1">\${tags}</div>
-                        </div>
-                    </div>
-                \`;
-            }).join('');
-            lucide.createIcons();
+                let borda = 'border-slate-800'; if(g.isBorrowed) borda = 'border-red-500/50'; if(g.isWishlist) borda = 'border-yellow-500/50';
+                return \`<div onclick="abrirModal('\${g.id}')" class="bg-slate-900 rounded-2xl flex flex-col overflow-hidden active:scale-95 transition-transform border \${borda}"><div class="relative aspect-[3/4] bg-slate-950 border-b border-slate-800 flex items-center justify-center">\${capa ? \`<img src="\${capa}" class="w-full h-full object-contain p-0.5" loading="lazy" />\` : \`<i data-lucide="image" class="w-6 h-6 text-slate-700"><\/i>\`}</div><div class="p-2.5 flex flex-col justify-between flex-1"><h3 class="font-bold text-white text-[10px] uppercase mb-1.5 truncate">\${g.title || 'Sem Título'}</h3><div class="flex flex-wrap gap-1">\${tags}</div></div></div>\`;
+            }).join(''); lucide.createIcons();
         }
-
         window.abrirModal = function(id) {
-            const jogo = jogos.find(x => x.id === id);
-            if(!jogo) return;
-
-            document.getElementById('modal-titulo').textContent = jogo.title;
-            document.getElementById('modal-capa').src = jogo.coverUrl || (jogo.covers && Object.values(jogo.covers)[0]) || '';
-            document.getElementById('modal-sinopse').textContent = jogo.synopsis || 'Nenhuma sinopse disponível.';
-            
-            const plataformas = (jogo.platforms || (jogo.platform ? [jogo.platform] : []));
-            document.getElementById('modal-plataformas').innerHTML = plataformas.map(p => \`<span class="bg-blue-600 text-white border border-blue-500 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">\${p}<\/span>\`).join('');
-            
-            // Lógica de Status
-            const containerStatus = document.getElementById('modal-status-container');
-            const spanStatus = document.getElementById('modal-status');
-            
-            if (jogo.isWishlist) {
-                containerStatus.classList.remove('hidden');
-                spanStatus.className = "text-[10px] font-bold px-2 py-1 rounded-md bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 inline-block";
-                spanStatus.textContent = "⭐ Desejo";
-            } else if (jogo.isPlaying) {
-                containerStatus.classList.remove('hidden');
-                spanStatus.className = "text-[10px] font-bold px-2 py-1 rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30 inline-block";
-                spanStatus.textContent = "▶️ Jogando Agora";
-            } else if (jogo.isBorrowed) {
-                containerStatus.classList.remove('hidden');
-                spanStatus.className = "text-[10px] font-bold px-2 py-1 rounded-md bg-red-500/20 text-red-400 border border-red-500/30 inline-block";
-                spanStatus.textContent = "🔴 Emprestado: " + (jogo.borrowedTo || 'Alguém');
-            } else {
-                containerStatus.classList.remove('hidden');
-                spanStatus.className = "text-[10px] font-bold px-2 py-1 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 inline-block";
-                spanStatus.textContent = "🟢 Disponível";
-            }
-
-            // Lógica de Mídias
-            const midias = jogo.medias || [];
-            const containerMidia = document.getElementById('modal-midia-container');
-            if (midias.length > 0 && !jogo.isWishlist) {
-                containerMidia.classList.remove('hidden');
-                document.getElementById('modal-midia').innerHTML = midias.map(mId => {
-                    const m = MEDIAS.find(x => x.id === mId) || { name: mId, icon: 'disc' };
-                    return \`<span class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold px-2 py-1 rounded flex items-center gap-1 w-fit"><i data-lucide="\${m.icon}" class="w-3 h-3"><\/i> \${m.name}<\/span>\`;
-                }).join('');
-            } else {
-                containerMidia.classList.add('hidden');
-            }
-
-            // Lógica de Idiomas
-            const idiomas = jogo.languages || [];
-            const containerIdiomas = document.getElementById('modal-idiomas-container');
-            if (idiomas.length > 0) {
-                containerIdiomas.classList.remove('hidden');
-                document.getElementById('modal-idiomas').innerHTML = idiomas.map(lId => {
-                    const l = LANGUAGES.find(x => x.id === lId) || { short: lId };
-                    return \`<span class="bg-slate-800 text-slate-300 border border-slate-700 text-[9px] font-bold px-2 py-1 rounded">\${l.short}<\/span>\`;
-                }).join('');
-            } else {
-                containerIdiomas.classList.add('hidden');
-            }
-
-            modal.classList.remove('hidden'); 
-            modal.classList.add('flex');
-            
-            // Recriar ícones gerados dinamicamente para a Mídia
-            lucide.createIcons();
+            const jogo = jogos.find(x => x.id === id); if(!jogo) return;
+            document.getElementById('modal-titulo').textContent = jogo.title; document.getElementById('modal-capa').src = jogo.coverUrl || (jogo.covers && Object.values(jogo.covers)[0]) || ''; document.getElementById('modal-sinopse').textContent = jogo.synopsis || 'Nenhuma sinopse disponível.';
+            const plataformas = (jogo.platforms || (jogo.platform ? [jogo.platform] : [])); document.getElementById('modal-plataformas').innerHTML = plataformas.map(p => \`<span class="bg-blue-600 text-white border border-blue-500 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">\${p}<\/span>\`).join('');
+            const containerStatus = document.getElementById('modal-status-container'); const spanStatus = document.getElementById('modal-status');
+            if (jogo.isWishlist) { containerStatus.classList.remove('hidden'); spanStatus.className = "text-[10px] font-bold px-2 py-1 rounded-md bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 inline-block"; spanStatus.textContent = "⭐ Desejo"; } else if (jogo.isPlaying) { containerStatus.classList.remove('hidden'); spanStatus.className = "text-[10px] font-bold px-2 py-1 rounded-md bg-blue-500/20 text-blue-400 border border-blue-500/30 inline-block"; spanStatus.textContent = "▶️ A Jogar"; } else if (jogo.isBorrowed) { containerStatus.classList.remove('hidden'); spanStatus.className = "text-[10px] font-bold px-2 py-1 rounded-md bg-red-500/20 text-red-400 border border-red-500/30 inline-block"; spanStatus.textContent = "🔴 Emprestado: " + (jogo.borrowedTo || 'Alguém'); } else { containerStatus.classList.remove('hidden'); spanStatus.className = "text-[10px] font-bold px-2 py-1 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 inline-block"; spanStatus.textContent = "🟢 Disponível"; }
+            const midias = jogo.medias || []; const containerMidia = document.getElementById('modal-midia-container');
+            if (midias.length > 0 && !jogo.isWishlist) { containerMidia.classList.remove('hidden'); document.getElementById('modal-midia').innerHTML = midias.map(mId => { const m = MEDIAS.find(x => x.id === mId) || { name: mId, icon: 'disc' }; return \`<span class="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold px-2 py-1 rounded flex items-center gap-1 w-fit"><i data-lucide="\${m.icon}" class="w-3 h-3"><\/i> \${m.name}<\/span>\`; }).join(''); } else { containerMidia.classList.add('hidden'); }
+            const idiomas = jogo.languages || []; const containerIdiomas = document.getElementById('modal-idiomas-container');
+            if (idiomas.length > 0) { containerIdiomas.classList.remove('hidden'); document.getElementById('modal-idiomas').innerHTML = idiomas.map(lId => { const l = LANGUAGES.find(x => x.id === lId) || { short: lId }; return \`<span class="bg-slate-800 text-slate-300 border border-slate-700 text-[9px] font-bold px-2 py-1 rounded">\${l.short}<\/span>\`; }).join(''); } else { containerIdiomas.classList.add('hidden'); }
+            modal.classList.remove('hidden'); modal.classList.add('flex'); lucide.createIcons();
         }
-
-        window.fecharModal = function() {
-            modal.classList.add('hidden'); 
-            modal.classList.remove('flex');
-        }
-
-        // Renderiza tudo ao carregar
+        window.fecharModal = function() { modal.classList.add('hidden'); modal.classList.remove('flex'); }
         renderizarGrade();
     ${closeScript}
 </body>
 </html>`;
 
-                const fileName = `GameVault_Colecao_${new Date().getTime()}.html`;
+                const fileName = `GameVault_Colecao_${currentUserId}.html`;
                 const file = new File([new Blob([htmlContent], { type: 'text/html;charset=utf-8' })], fileName, { type: 'text/html' });
 
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({
-                        files: [file],
-                        title: 'Coleção GameVault',
-                        text: 'HTML interativo da minha coleção.'
-                    });
+                    await navigator.share({ files: [file], title: 'Coleção GameVault', text: 'HTML interativo da minha coleção.' });
                 } else if (window.Capacitor && window.Capacitor.isNative && window.Capacitor.Plugins.Share && window.Capacitor.Plugins.Filesystem) {
                     const base64Data = btoa(unescape(encodeURIComponent(htmlContent)));
                     const savedFile = await window.Capacitor.Plugins.Filesystem.writeFile({ path: fileName, data: base64Data, directory: 'CACHE' });
-                    await window.Capacitor.Plugins.Share.share({ title: 'Minha Coleção Web', url: savedFile.uri, dialogTitle: 'Salvar Arquivo HTML' });
+                    await window.Capacitor.Plugins.Share.share({ title: 'A Minha Coleção Web', url: savedFile.uri });
                 } else {
                     const url = URL.createObjectURL(file);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = fileName;
-                    document.body.appendChild(link);
-                    link.click();
+                    const link = document.createElement('a'); link.href = url; link.download = fileName;
+                    document.body.appendChild(link); link.click();
                     setTimeout(() => { document.body.removeChild(link); window.URL.revokeObjectURL(url); }, 100);
                 }
-
                 if (window.isPlatformMenuOpen) window.togglePlatformMenu();
-
             } catch (err) {
-                // Se a API nativa do celular bloquear, avisamos
-                if(err.message !== "Plugins ausentes") alert("Erro ao gerar arquivo: " + err.message);
+                if(err.message !== "Plugins ausentes") showDialog({ title: "Erro", message: "Erro ao gerar ficheiro: " + err.message });
             } finally {
-                if (btnElement) {
-                    btnElement.innerHTML = originalBtnContent;
-                    lucide.createIcons({ root: btnElement });
-                    btnElement.disabled = false;
-                }
+                if (btnElement) { btnElement.innerHTML = originalBtnContent; lucide.createIcons({ root: btnElement }); btnElement.disabled = false; }
             }
         };
 
-        // --- EXPORTAÇÃO SOFISTICADA PARA EXCEL ---
         window.exportarPlanilhaSofisticada = async function(btnElement) {
-            if (!games || games.length === 0) return alert("Sua coleção está vazia!");
-
-            // Modifica o botão para mostrar que está a carregar
-            const originalBtnContent = btnElement ? btnElement.innerHTML : '';
-            if (btnElement) {
-                btnElement.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> Processando...';
-                lucide.createIcons({ root: btnElement });
-                btnElement.disabled = true;
+            // BLOQUEIO FREEMIUM
+            if (!window.currentUserIsPremium) {
+                showPremiumScreen(false, "O relatório em Excel (XLSX) avançado é exclusivo do plano Premium.");
+                return;
             }
 
+            if (!games || games.length === 0) {
+                showDialog({ message: "A tua coleção está vazia!" });
+                return;
+            }
+
+            const originalBtnContent = btnElement ? btnElement.innerHTML : '';
+            if (btnElement) { btnElement.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> A processar...'; lucide.createIcons({ root: btnElement }); btnElement.disabled = true; }
+
             try {
-                // Inicia o Workbook
-                const workbook = new ExcelJS.Workbook();
-                workbook.creator = 'GameVault App';
-                workbook.created = new Date();
-
-                // ==========================================
-                // ABA 1: DASHBOARD (RESUMO)
-                // ==========================================
+                const workbook = new ExcelJS.Workbook(); workbook.creator = 'GameVault App'; workbook.created = new Date();
                 const sheetResumo = workbook.addWorksheet('📊 Dashboard', { properties: { tabColor: { argb: 'FF0ea5e9' } } });
-                
-                // Título Principal
-                sheetResumo.mergeCells('A1:C2');
-                const titleCell = sheetResumo.getCell('A1');
-                titleCell.value = 'Relatório Geral - GameVault';
-                titleCell.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
-                titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0f172a' } };
-                titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+                sheetResumo.mergeCells('A1:C2'); const titleCell = sheetResumo.getCell('A1');
+                titleCell.value = 'Relatório Geral - GameVault'; titleCell.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FFFFFFFF' } }; titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0f172a' } }; titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
-                // Estatísticas Básicas (Com proteções Null/Undefined)
                 const totalEmprestados = games.filter(g => g.isBorrowed).length;
                 const plataformasUnicas = [...new Set(games.flatMap(g => g.platforms || (g.platform ? [g.platform] : [])))];
 
-                sheetResumo.getColumn('A').width = 30;
-                sheetResumo.getColumn('B').width = 20;
-
-                sheetResumo.getCell('A4').value = 'MÉTRICAS DA COLEÇÃO';
-                sheetResumo.getCell('A4').font = { bold: true, color: { argb: 'FF0ea5e9' } };
-                
-                sheetResumo.addRow(['Total de Jogos', games.length]);
-                sheetResumo.addRow(['Jogos Emprestados', totalEmprestados]);
-                sheetResumo.addRow(['Plataformas Diferentes', plataformasUnicas.length]);
-                sheetResumo.addRow(['Data de Exportação', new Date().toLocaleDateString('pt-BR')]);
+                sheetResumo.getColumn('A').width = 30; sheetResumo.getColumn('B').width = 20;
+                sheetResumo.getCell('A4').value = 'MÉTRICAS DA COLEÇÃO (' + currentUserId + ')'; sheetResumo.getCell('A4').font = { bold: true, color: { argb: 'FF0ea5e9' } };
+                sheetResumo.addRow(['Total de Jogos', games.length]); sheetResumo.addRow(['Jogos Emprestados', totalEmprestados]); sheetResumo.addRow(['Plataformas Diferentes', plataformasUnicas.length]); sheetResumo.addRow(['Data de Exportação', new Date().toLocaleDateString('pt-PT')]);
 
                 for(let i = 5; i <= 8; i++) {
-                    sheetResumo.getCell(`A${i}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
-                    sheetResumo.getCell(`A${i}`).border = { bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } } };
-                    sheetResumo.getCell(`B${i}`).font = { bold: true };
-                    sheetResumo.getCell(`B${i}`).alignment = { horizontal: 'center' };
-                    sheetResumo.getCell(`B${i}`).border = { bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } } };
+                    sheetResumo.getCell(`A${i}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }; sheetResumo.getCell(`A${i}`).border = { bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } } }; sheetResumo.getCell(`B${i}`).font = { bold: true }; sheetResumo.getCell(`B${i}`).alignment = { horizontal: 'center' }; sheetResumo.getCell(`B${i}`).border = { bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } } };
                 }
 
-                // ==========================================
-                // ABA 2: BANCO DE DADOS (COLEÇÃO)
-                // ==========================================
-                const sheetDados = workbook.addWorksheet('🎮 Banco de Dados', { properties: { tabColor: { argb: 'FF10b981' } } });
-
+                const sheetDados = workbook.addWorksheet('🎮 Base de Dados', { properties: { tabColor: { argb: 'FF10b981' } } });
                 sheetDados.columns = [
-                    { header: 'Título do Jogo', key: 'title', width: 40 },
-                    { header: 'Plataformas', key: 'platforms', width: 25 },
-                    { header: 'Mídias', key: 'medias', width: 20 },
-                    { header: 'Status', key: 'status', width: 20 },
-                    { header: 'Emprestado Para', key: 'borrowedTo', width: 25 }
+                    { header: 'Título do Jogo', key: 'title', width: 40 }, { header: 'Plataformas', key: 'platforms', width: 25 }, { header: 'Mídias', key: 'medias', width: 20 }, { header: 'Estado', key: 'status', width: 20 }, { header: 'Emprestado A', key: 'borrowedTo', width: 25 }
                 ];
 
-                const headerRow = sheetDados.getRow(1);
-                headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-                headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } };
-                headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
-                headerRow.height = 25;
-                sheetDados.autoFilter = 'A1:E1';
+                const headerRow = sheetDados.getRow(1); headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }; headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } }; headerRow.alignment = { vertical: 'middle', horizontal: 'center' }; headerRow.height = 25; sheetDados.autoFilter = 'A1:E1';
 
                 const sortedGames = [...games].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
-                
                 sortedGames.forEach((g, index) => {
-                    // Mapeamento protegido contra null/undefined
-                    const pList = g.platforms || (g.platform ? [g.platform] : []);
-                    const plats = pList.map(p => {
-                        const found = PLATFORMS.find(pl => pl.id === p);
-                        return found ? found.name : (p || '').toUpperCase();
-                    }).join(', ');
-
-                    const mList = g.medias || [];
-                    const meds = mList.map(m => {
-                        const found = MEDIAS.find(md => md.id === m);
-                        return found ? found.name : (m || '').toUpperCase();
-                    }).join(', ');
-
-                    let statusStr = '🟢 Na Coleção';
-                    if (g.isWishlist) statusStr = '⭐ Lista de Desejos';
-                    else if (g.isBorrowed) statusStr = '🔴 Emprestado';
+                    const pList = g.platforms || (g.platform ? [g.platform] : []); const plats = pList.map(p => { const found = PLATFORMS.find(pl => pl.id === p); return found ? found.name : (p || '').toUpperCase(); }).join(', ');
+                    const mList = g.medias || []; const meds = mList.map(m => { const found = MEDIAS.find(md => md.id === m); return found ? found.name : (m || '').toUpperCase(); }).join(', ');
+                    let statusStr = '🟢 Na Coleção'; if (g.isWishlist) statusStr = '⭐ Lista de Desejos'; else if (g.isBorrowed) statusStr = '🔴 Emprestado';
                     
-                    const row = sheetDados.addRow({
-                        title: g.title || 'Sem Título',
-                        platforms: plats || '-',
-                        medias: meds || '-',
-                        status: statusStr,
-                        borrowedTo: g.isBorrowed ? (g.borrowedTo || '-') : '-'
-                    });
-
-                    if (index % 2 === 0) {
-                        row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
-                    }
-                    
+                    const row = sheetDados.addRow({ title: g.title || 'Sem Título', platforms: plats || '-', medias: meds || '-', status: statusStr, borrowedTo: g.isBorrowed ? (g.borrowedTo || '-') : '-' });
+                    if (index % 2 === 0) row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
                     row.getCell('status').alignment = { horizontal: 'center' };
                     if (g.isBorrowed) row.getCell('status').font = { color: { argb: 'FFDC2626' }, bold: true };
-            if (g.isWishlist) row.getCell('status').font = { color: { argb: 'FFD97706' }, bold: true };
-            if (g.isPlaying) row.getCell('status').font = { color: { argb: 'FF3B82F6' }, bold: true };
-        });
+                    if (g.isWishlist) row.getCell('status').font = { color: { argb: 'FFD97706' }, bold: true };
+                    if (g.isPlaying) row.getCell('status').font = { color: { argb: 'FF3B82F6' }, bold: true };
+                });
 
-        // Geração do Arquivo
                 const buffer = await workbook.xlsx.writeBuffer();
-                const fileName = `GameVault_Colecao_${new Date().getTime()}.xlsx`;
+                const fileName = `GameVault_${currentUserId}_${new Date().getTime()}.xlsx`;
                 const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
-                // Verifica se está rodando de forma Nativa no celular via Capacitor
                 if (window.Capacitor && window.Capacitor.isNative) {
-                    const Filesystem = window.Capacitor.Plugins.Filesystem;
-                    const Share = window.Capacitor.Plugins.Share;
-
-                    if (!Filesystem || !Share) {
-                        alert("⚠️ ERRO: Para baixar no telemóvel nativamente, instale os plugins de Filesystem e Share do Capacitor.");
-                        throw new Error("Plugins Nativos Ausentes");
-                    }
-
+                    const Filesystem = window.Capacitor.Plugins.Filesystem; const Share = window.Capacitor.Plugins.Share;
                     const base64Data = await new Promise((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            if (typeof reader.result === 'string') resolve(reader.result.split(',')[1]);
-                            else reject(new Error("Falha ao processar Base64"));
-                        };
-                        reader.onerror = () => reject(new Error("Erro ao ler o ficheiro"));
-                        reader.readAsDataURL(blob);
+                        const reader = new FileReader(); reader.onloadend = () => { if (typeof reader.result === 'string') resolve(reader.result.split(',')[1]); else reject(new Error("Falha ao processar Base64")); }; reader.onerror = () => reject(new Error("Erro ao ler")); reader.readAsDataURL(blob);
                     });
-
-                    const savedFile = await Filesystem.writeFile({
-                        path: fileName,
-                        data: base64Data,
-                        directory: 'CACHE'
-                    });
-
-                    await Share.share({
-                        title: 'Exportação GameVault',
-                        text: 'Aqui está o backup da minha coleção GameVault!',
-                        url: savedFile.uri,
-                        dialogTitle: 'Salvar Planilha XLSX'
-                    });
-                    
+                    const savedFile = await Filesystem.writeFile({ path: fileName, data: base64Data, directory: 'CACHE' });
+                    await Share.share({ title: 'Exportação GameVault', url: savedFile.uri });
                 } else {
-                    // Navegador Mobile (Web API Share) ou PC Clássico
                     const file = new File([blob], fileName, { type: blob.type });
-
-                    // Se for um celular abrindo pelo navegador, tenta chamar a tela nativa de compartilhamento/salvamento
                     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        try {
-                            await navigator.share({
-                                files: [file],
-                                title: 'Planilha GameVault',
-                                text: 'Aqui está minha coleção exportada.'
-                            });
-                        } catch (shareErr) {
-                            console.log("Usuário cancelou ou falhou o share:", shareErr);
-                        }
+                        try { await navigator.share({ files: [file], title: 'Planilha GameVault', text: 'A minha coleção exportada.' }); } catch (e) {}
                     } else {
-                        // Fallback PC (Cria o link invisível e clica)
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = fileName;
-                        document.body.appendChild(link);
-                        link.click();
-                        
-                        // Limpeza de memória
-                        setTimeout(() => {
-                            document.body.removeChild(link);
-                            window.URL.revokeObjectURL(url);
-                        }, 100);
+                        const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = fileName;
+                        document.body.appendChild(link); link.click(); setTimeout(() => { document.body.removeChild(link); window.URL.revokeObjectURL(url); }, 100);
                     }
                 }
-
                 if (window.isPlatformMenuOpen) window.togglePlatformMenu();
-
             } catch (err) {
-                console.error("Erro na exportação Excel:", err);
-                if(err.message !== "Plugins Nativos Ausentes"){
-                    alert("Falha ao gerar a planilha. Erro: " + (err.message || "Desconhecido"));
-                }
+                if(err.message !== "Plugins Nativos Ausentes") showDialog({ title: "Erro", message: "Falha ao gerar a planilha. Erro: " + (err.message || "Desconhecido") });
             } finally {
-                if (btnElement) {
-                    btnElement.innerHTML = originalBtnContent;
-                    lucide.createIcons({ root: btnElement });
-                    btnElement.disabled = false;
-                }
+                if (btnElement) { btnElement.innerHTML = originalBtnContent; lucide.createIcons({ root: btnElement }); btnElement.disabled = false; }
             }
         };
 
         // --- EVENT LISTENERS ---
         function setupEventListeners() {
-            dom.searchInput.addEventListener('input', (e) => {
-                searchQuery = e.target.value.toLowerCase();
-                renderGames();
-            });
-
+            dom.searchInput.addEventListener('input', (e) => { searchQuery = e.target.value.toLowerCase(); renderGames(); });
             dom.fIsBorrowed.addEventListener('change', (e) => toggleBorrowedUI(e.target.checked));
-            dom.fCoverUrl.addEventListener('input', (e) => {
-                formData_covers[formData_activePlatformCover] = e.target.value;
-                renderCoverPreview();
-            });
+            dom.fCoverUrl.addEventListener('input', (e) => { formData_covers[formData_activePlatformCover] = e.target.value; renderCoverPreview(); });
             dom.apiSearchInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') handleApiSearch(); });
             dom.fSynopsis.addEventListener('input', () => dom.btnTranslate.disabled = !dom.fSynopsis.value.trim());
         }
 
         // --- UI FUNCTIONS ---
         window.toggleWishlistUI = function(isWish) {
-            if (isWish) {
-                dom.borrowedCard.classList.add('hidden');
-                dom.fIsBorrowed.checked = false;
-                toggleBorrowedUI(false);
-            } else {
-                dom.borrowedCard.classList.remove('hidden');
-            }
+            if (isWish) { dom.borrowedCard.classList.add('hidden'); dom.fIsBorrowed.checked = false; toggleBorrowedUI(false); } 
+            else { dom.borrowedCard.classList.remove('hidden'); }
         }
 
         window.togglePlatformMenu = function() {
             window.isPlatformMenuOpen = !window.isPlatformMenuOpen;
-            const dropdown = document.getElementById('platform-dropdown');
-            const chevron = document.getElementById('platform-menu-chevron');
-            const logo = document.getElementById('main-app-logo'); 
+            const dropdown = document.getElementById('platform-dropdown'); const chevron = document.getElementById('platform-menu-chevron'); const logo = document.getElementById('main-app-logo'); 
             
             if (window.isPlatformMenuOpen) {
-                dropdown.classList.remove('-translate-y-full', 'opacity-0', 'pointer-events-none');
-                dropdown.classList.add('translate-y-0', 'opacity-100', 'pointer-events-auto');
-                chevron.classList.add('rotate-180');
-                logo.classList.add('logo-glow-active'); 
+                dropdown.classList.remove('-translate-y-full', 'opacity-0', 'pointer-events-none'); dropdown.classList.add('translate-y-0', 'opacity-100', 'pointer-events-auto'); chevron.classList.add('rotate-180'); logo.classList.add('logo-glow-active'); 
             } else {
-                dropdown.classList.add('-translate-y-full', 'opacity-0', 'pointer-events-none');
-                dropdown.classList.remove('translate-y-0', 'opacity-100', 'pointer-events-auto');
-                chevron.classList.remove('rotate-180');
-                if (window.filterPlatform === 'all') {
-                    logo.classList.remove('logo-glow-active'); 
-                }
+                dropdown.classList.add('-translate-y-full', 'opacity-0', 'pointer-events-none'); dropdown.classList.remove('translate-y-0', 'opacity-100', 'pointer-events-auto'); chevron.classList.remove('rotate-180');
+                if (window.filterPlatform === 'all') logo.classList.remove('logo-glow-active'); 
             }
         }
 
         window.setPlatformFilter = function(platformId) {
-            window.filterPlatform = platformId;
-            updatePlatforms();
-            renderGames();
+            window.filterPlatform = platformId; updatePlatforms(); renderGames();
             if (window.isPlatformMenuOpen) window.togglePlatformMenu();
         }
 
@@ -1191,66 +1802,42 @@
 
             let htmlDropdown = `
                 <button onclick="window.setPlatformFilter('all')" class="p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all border ${window.filterPlatform === 'all' ? 'bg-blue-600 border-blue-500 text-white shadow-[0_4px_10px_rgba(59,130,246,0.3)]' : 'bg-slate-950 border-slate-800 text-slate-400'}">
-                    <i data-lucide="library" class="w-5 h-5"></i>
-                    <span class="text-[10px] font-bold">Coleção</span>
-                    <span class="text-[9px] opacity-70 mt-[-2px]">${colecaoGeralCount}</span>
+                    <i data-lucide="library" class="w-5 h-5"></i><span class="text-[10px] font-bold">Coleção</span><span class="text-[9px] opacity-70 mt-[-2px]">${colecaoGeralCount}</span>
                 </button>
                 <button onclick="window.setPlatformFilter('wishlist')" class="p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all border ${window.filterPlatform === 'wishlist' ? 'bg-yellow-500 border-yellow-400 text-slate-900 shadow-[0_4px_10px_rgba(234,179,8,0.3)]' : 'bg-slate-950 border-slate-800 text-slate-400'}">
-                    <i data-lucide="star" class="w-5 h-5"></i>
-                    <span class="text-[10px] font-bold">Desejos</span>
-                    <span class="text-[9px] opacity-70 mt-[-2px]">${wishlistCount}</span>
+                    <i data-lucide="star" class="w-5 h-5"></i><span class="text-[10px] font-bold">Desejos</span><span class="text-[9px] opacity-70 mt-[-2px]">${wishlistCount}</span>
                 </button>
             `;
 
             PLATFORMS.forEach(p => {
                 const count = games.filter(g => !g.isWishlist && (g.platforms || (g.platform ? [g.platform] : [])).includes(p.id)).length;
                 const isActive = window.filterPlatform === p.id;
-
                 const dropClass = isActive ? 'bg-blue-600 border-blue-500 text-white shadow-[0_4px_10px_rgba(59,130,246,0.3)]' : 'bg-slate-950 border-slate-800 text-slate-400';
                 htmlDropdown += `
                     <button onclick="window.setPlatformFilter('${p.id}')" class="p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all border ${dropClass}">
-                        <i data-lucide="${p.icon}" class="w-5 h-5"></i>
-                        <span class="text-[10px] font-bold uppercase">${p.name}</span>
-                        <span class="text-[9px] opacity-70 mt-[-2px]">${count}</span>
+                        <i data-lucide="${p.icon}" class="w-5 h-5"></i><span class="text-[10px] font-bold uppercase">${p.name}</span><span class="text-[9px] opacity-70 mt-[-2px]">${count}</span>
                     </button>
                 `;
             });
             
-            dom.dropdownPlatformsContainer.innerHTML = htmlDropdown;
-            lucide.createIcons({ root: dom.dropdownPlatformsContainer });
+            dom.dropdownPlatformsContainer.innerHTML = htmlDropdown; lucide.createIcons({ root: dom.dropdownPlatformsContainer });
 
             const currentP = PLATFORMS.find(p => p.id === window.filterPlatform);
-            let pageTitle = 'GameVault';
-            let sectionName = 'A Sua Coleção';
+            let pageTitle = 'GameVault'; let sectionName = 'A Sua Coleção';
 
-            if (window.filterPlatform === 'wishlist') {
-                pageTitle = 'Desejos';
-                sectionName = 'Lista de Desejos';
-            } else if (window.filterPlatform !== 'all') {
-                pageTitle = currentP.name;
-                sectionName = currentP.name;
-            }
+            if (window.filterPlatform === 'wishlist') { pageTitle = 'Desejos'; sectionName = 'Lista de Desejos'; } 
+            else if (window.filterPlatform !== 'all') { pageTitle = currentP.name; sectionName = currentP.name; }
 
-            document.getElementById('current-platform-title').textContent = pageTitle;
-            dom.sectionTitle.textContent = sectionName;
+            document.getElementById('current-platform-title').textContent = pageTitle; dom.sectionTitle.textContent = sectionName;
 
             const logo = document.getElementById('main-app-logo');
-            if (window.filterPlatform !== 'all' || window.isPlatformMenuOpen) {
-                logo.classList.add('logo-glow-active');
-            } else {
-                logo.classList.remove('logo-glow-active');
-            }
+            if (window.filterPlatform !== 'all' || window.isPlatformMenuOpen) logo.classList.add('logo-glow-active');
+            else logo.classList.remove('logo-glow-active');
         }
 
         function toggleBorrowedUI(isBorrowed) {
-            if (isBorrowed) {
-                dom.borrowedLabel.classList.replace('text-slate-400', 'text-red-400');
-                dom.borrowedToContainer.classList.remove('hidden');
-            } else {
-                dom.borrowedLabel.classList.replace('text-red-400', 'text-slate-400');
-                dom.borrowedToContainer.classList.add('hidden');
-                dom.fBorrowedTo.value = '';
-            }
+            if (isBorrowed) { dom.borrowedLabel.classList.replace('text-slate-400', 'text-red-400'); dom.borrowedToContainer.classList.remove('hidden'); } 
+            else { dom.borrowedLabel.classList.replace('text-red-400', 'text-slate-400'); dom.borrowedToContainer.classList.add('hidden'); dom.fBorrowedTo.value = ''; }
         }
         
         window.togglePlatformForm = function(id) {
@@ -1261,8 +1848,7 @@
                 formData_selectedPlatforms.push(id);
                 if (formData_selectedPlatforms.length === 1 || formData_activePlatformCover === 'default') formData_activePlatformCover = id;
             }
-            renderPlatformToggles();
-            renderModalCoverUI();
+            renderPlatformToggles(); renderModalCoverUI();
         }
 
         function renderPlatformToggles() {
@@ -1271,13 +1857,11 @@
                 const isSelected = formData_selectedPlatforms.includes(p.id);
                 html += `<button type="button" onclick="window.togglePlatformForm('${p.id}')" class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 border transition-all focus:outline-none ${isSelected ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-500'}"><i data-lucide="${p.icon}" class="w-3 h-3"></i>${p.name}</button>`;
             });
-            dom.fPlatformsContainer.innerHTML = html;
-            lucide.createIcons({ root: dom.fPlatformsContainer });
+            dom.fPlatformsContainer.innerHTML = html; lucide.createIcons({ root: dom.fPlatformsContainer });
         }
 
         window.toggleLanguageForm = function(id) {
-            formData_selectedLanguages.includes(id) ? formData_selectedLanguages = formData_selectedLanguages.filter(l => l !== id) : formData_selectedLanguages.push(id);
-            renderLanguageToggles();
+            formData_selectedLanguages.includes(id) ? formData_selectedLanguages = formData_selectedLanguages.filter(l => l !== id) : formData_selectedLanguages.push(id); renderLanguageToggles();
         }
 
         function renderLanguageToggles() {
@@ -1290,8 +1874,7 @@
         }
 
         window.toggleMediaForm = function(id) {
-            formData_selectedMedias.includes(id) ? formData_selectedMedias = formData_selectedMedias.filter(m => m !== id) : formData_selectedMedias.push(id);
-            renderMediaToggles();
+            formData_selectedMedias.includes(id) ? formData_selectedMedias = formData_selectedMedias.filter(m => m !== id) : formData_selectedMedias.push(id); renderMediaToggles();
         }
 
         function renderMediaToggles() {
@@ -1300,8 +1883,7 @@
                 const isSelected = formData_selectedMedias.includes(m.id);
                 html += `<button type="button" onclick="window.toggleMediaForm('${m.id}')" class="px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 border transition-all focus:outline-none ${isSelected ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-500'}"><i data-lucide="${m.icon}" class="w-3 h-3"></i>${m.name}</button>`;
             });
-            dom.fMediasContainer.innerHTML = html;
-            lucide.createIcons({ root: dom.fMediasContainer });
+            dom.fMediasContainer.innerHTML = html; lucide.createIcons({ root: dom.fMediasContainer });
         }
 
         window.setActiveCoverTab = function(pId) { formData_activePlatformCover = pId; renderModalCoverUI(); };
@@ -1314,68 +1896,40 @@
                     const isActive = (p.id === formData_activePlatformCover);
                     html += `<button type="button" onclick="window.setActiveCoverTab('${p.id}')" class="px-2 py-0.5 text-[8px] font-bold uppercase rounded border ${isActive ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800 text-slate-400 border-slate-700'}">${p.id}</button>`;
                 });
-                tabsContainer.innerHTML = html;
-                tabsContainer.classList.remove('hidden');
+                tabsContainer.innerHTML = html; tabsContainer.classList.remove('hidden');
             } else tabsContainer.classList.add('hidden');
 
-            dom.fCoverUrl.value = formData_covers[formData_activePlatformCover] || '';
-            renderCoverPreview(); 
+            dom.fCoverUrl.value = formData_covers[formData_activePlatformCover] || ''; renderCoverPreview(); 
         }
 
         function renderCoverPreview() {
             const url = dom.fCoverUrl.value;
-            let html = url 
-                ? `<img src="${url}" alt="Capa" class="w-full h-full object-contain p-0.5" />`
-                : `<div class="flex flex-col items-center justify-center h-full text-slate-700"><i data-lucide="image" class="w-5 h-5 mb-1"></i><span class="text-[8px] uppercase tracking-widest font-bold">Vazio</span></div>`;
-
+            let html = url ? `<img src="${url}" alt="Capa" class="w-full h-full object-contain p-0.5" />` : `<div class="flex flex-col items-center justify-center h-full text-slate-700"><i data-lucide="image" class="w-5 h-5 mb-1"></i><span class="text-[8px] uppercase tracking-widest font-bold">Vazio</span></div>`;
             if (formData_coverOptions.length > 1) {
-                html += `
-                    <div class="absolute inset-x-0 bottom-0 bg-slate-950/90 backdrop-blur px-1 py-1 flex justify-between items-center">
-                        <button type="button" onclick="window.cycleCover(-1)" class="p-0.5 text-white"><i data-lucide="chevron-left" class="w-3 h-3"></i></button>
-                        <span class="text-white text-[8px] font-bold">${formData_currentCoverIndex + 1}/${formData_coverOptions.length}</span>
-                        <button type="button" onclick="window.cycleCover(1)" class="p-0.5 text-white"><i data-lucide="chevron-right" class="w-3 h-3"></i></button>
-                    </div>
-                `;
+                html += `<div class="absolute inset-x-0 bottom-0 bg-slate-950/90 backdrop-blur px-1 py-1 flex justify-between items-center"><button type="button" onclick="window.cycleCover(-1)" class="p-0.5 text-white"><i data-lucide="chevron-left" class="w-3 h-3"></i></button><span class="text-white text-[8px] font-bold">${formData_currentCoverIndex + 1}/${formData_coverOptions.length}</span><button type="button" onclick="window.cycleCover(1)" class="p-0.5 text-white"><i data-lucide="chevron-right" class="w-3 h-3"></i></button></div>`;
             }
-
-            dom.coverPreviewContainer.innerHTML = html;
-            lucide.createIcons({ root: dom.coverPreviewContainer });
+            dom.coverPreviewContainer.innerHTML = html; lucide.createIcons({ root: dom.coverPreviewContainer });
         }
 
         window.cycleCover = function(dir) {
             if (!formData_coverOptions.length) return;
             formData_currentCoverIndex = (formData_currentCoverIndex + dir + formData_coverOptions.length) % formData_coverOptions.length;
             const newUrl = formData_coverOptions[formData_currentCoverIndex];
-            dom.fCoverUrl.value = formData_covers[formData_activePlatformCover] = newUrl;
-            renderCoverPreview();
+            dom.fCoverUrl.value = formData_covers[formData_activePlatformCover] = newUrl; renderCoverPreview();
         }
 
         function renderPlayingNow() {
             const playingGames = games.filter(g => g.isPlaying && !g.isWishlist);
             
             if (playingGames.length === 0) {
-                dom.playingNowSection.classList.add('hidden');
-                dom.playingNowSection.classList.remove('flex');
+                dom.playingNowSection.classList.add('hidden'); dom.playingNowSection.classList.remove('flex');
             } else {
-                dom.playingNowSection.classList.remove('hidden');
-                dom.playingNowSection.classList.add('flex');
-                
+                dom.playingNowSection.classList.remove('hidden'); dom.playingNowSection.classList.add('flex');
                 dom.playingNowGrid.innerHTML = playingGames.map(game => {
                     let validCovers = (game.platforms || []).map(pId => game.covers && game.covers[pId]).filter(Boolean);
                     if (!validCovers.length && game.coverUrl) validCovers.push(game.coverUrl);
                     const cover = validCovers[0] || '';
-                    
-                    return `
-                        <div onclick="window.openEditModal('${game.id}')" class="min-w-[95px] w-[95px] bg-slate-900 border border-blue-500/50 rounded-xl flex flex-col overflow-hidden active:scale-95 transition-transform shrink-0 shadow-[0_4px_15px_rgba(59,130,246,0.15)] relative">
-                            <div class="relative aspect-[3/4] bg-slate-950 flex items-center justify-center">
-                                ${cover ? `<img src="${cover}" class="w-full h-full object-contain p-0.5" loading="lazy" />` : `<i data-lucide="image" class="w-5 h-5 text-slate-700"></i>`}
-                                <div class="absolute -top-1 -right-1 bg-blue-600 rounded-full p-1.5 shadow-lg border-2 border-slate-900 z-10"><i data-lucide="play" class="w-2.5 h-2.5 text-white fill-white"></i></div>
-                            </div>
-                            <div class="p-1.5 flex-1 flex items-center justify-center bg-blue-600/10 border-t border-blue-500/30">
-                                <h3 class="font-bold text-blue-100 text-[8px] leading-tight line-clamp-2 text-center uppercase">${game.title}</h3>
-                            </div>
-                        </div>
-                    `;
+                    return `<div onclick="window.openEditModal('${game.id}')" class="min-w-[95px] w-[95px] bg-slate-900 border border-blue-500/50 rounded-xl flex flex-col overflow-hidden active:scale-95 transition-transform shrink-0 shadow-[0_4px_15px_rgba(59,130,246,0.15)] relative"><div class="relative aspect-[3/4] bg-slate-950 flex items-center justify-center">${cover ? `<img src="${cover}" class="w-full h-full object-contain p-0.5" loading="lazy" />` : `<i data-lucide="image" class="w-5 h-5 text-slate-700"></i>`}<div class="absolute -top-1 -right-1 bg-blue-600 rounded-full p-1.5 shadow-lg border-2 border-slate-900 z-10"><i data-lucide="play" class="w-2.5 h-2.5 text-white fill-white"></i></div></div><div class="p-1.5 flex-1 flex items-center justify-center bg-blue-600/10 border-t border-blue-500/30"><h3 class="font-bold text-blue-100 text-[8px] leading-tight line-clamp-2 text-center uppercase">${game.title}</h3></div></div>`;
                 }).join('');
                 lucide.createIcons({ root: dom.playingNowGrid });
             }
@@ -1384,16 +1938,10 @@
         function renderGames() {
             const filteredGames = games.filter(g => {
                 const gamePlats = g.platforms || (g.platform ? [g.platform] : []);
-                
                 let matchPlatform = false;
-                if (window.filterPlatform === 'wishlist') {
-                    matchPlatform = g.isWishlist;
-                } else if (window.filterPlatform === 'all') {
-                    matchPlatform = !g.isWishlist; 
-                } else {
-                    matchPlatform = !g.isWishlist && gamePlats.includes(window.filterPlatform);
-                }
-
+                if (window.filterPlatform === 'wishlist') matchPlatform = g.isWishlist;
+                else if (window.filterPlatform === 'all') matchPlatform = !g.isWishlist; 
+                else matchPlatform = !g.isWishlist && gamePlats.includes(window.filterPlatform);
                 const matchSearch = g.title.toLowerCase().includes(searchQuery);
                 return matchPlatform && matchSearch;
             }).sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }));
@@ -1402,11 +1950,9 @@
 
             if (filteredGames.length === 0) {
                 dom.gamesGrid.innerHTML = '';
-                dom.emptyState.classList.remove('hidden');
-                dom.emptyState.classList.add('flex');
+                dom.emptyState.classList.remove('hidden'); dom.emptyState.classList.add('flex');
             } else {
-                dom.emptyState.classList.add('hidden');
-                dom.emptyState.classList.remove('flex');
+                dom.emptyState.classList.add('hidden'); dom.emptyState.classList.remove('flex');
                 
                 let html = '';
                 filteredGames.forEach(game => {
@@ -1428,11 +1974,8 @@
                         : `<div class="w-full h-full flex items-center justify-center bg-slate-900 text-slate-700"><i data-lucide="image" class="w-6 h-6"></i></div>`;
 
                     let statusBadge = '';
-                    if (game.isBorrowed) {
-                        statusBadge = `<div class="absolute top-1.5 right-1.5 bg-red-600 rounded-full p-1 shadow-md"><i data-lucide="user-minus" class="w-2.5 h-2.5 text-white"></i></div>`;
-                    } else if (game.isWishlist) {
-                        statusBadge = `<div class="absolute top-1.5 right-1.5 bg-yellow-500 rounded-full p-1 shadow-md"><i data-lucide="star" class="w-2.5 h-2.5 text-slate-900 fill-slate-900"></i></div>`;
-                    }
+                    if (game.isBorrowed) statusBadge = `<div class="absolute top-1.5 right-1.5 bg-red-600 rounded-full p-1 shadow-md"><i data-lucide="user-minus" class="w-2.5 h-2.5 text-white"></i></div>`;
+                    else if (game.isWishlist) statusBadge = `<div class="absolute top-1.5 right-1.5 bg-yellow-500 rounded-full p-1 shadow-md"><i data-lucide="star" class="w-2.5 h-2.5 text-slate-900 fill-slate-900"></i></div>`;
 
                     let platformTagsHtml = '';
                     gamePlats.forEach(pId => {
@@ -1442,71 +1985,42 @@
 
                     let mediasHtml = '';
                     if (!game.isWishlist) {
-                        mediasHtml = `
-                            <div class="absolute bottom-1 right-1 flex gap-0.5">
-                                ${(game.medias || []).map(mId => `<div class="bg-slate-900/90 rounded-full p-0.5"><i data-lucide="${MEDIAS.find(m=>m.id===mId)?.icon}" class="w-2.5 h-2.5 text-emerald-400"></i></div>`).join('')}
-                            </div>
-                        `;
+                        mediasHtml = `<div class="absolute bottom-1 right-1 flex gap-0.5">${(game.medias || []).map(mId => `<div class="bg-slate-900/90 rounded-full p-0.5"><i data-lucide="${MEDIAS.find(m=>m.id===mId)?.icon}" class="w-2.5 h-2.5 text-emerald-400"></i></div>`).join('')}</div>`;
                     }
 
-                    html += `
-                        <div onclick="window.openEditModal('${game.id}')" class="bg-slate-900 border rounded-2xl flex flex-col overflow-hidden active:scale-95 transition-transform ${borderStyle}">
-                            <div class="relative aspect-[3/4] bg-slate-950 border-b border-slate-800">
-                                ${coverInner}
-                                ${statusBadge}
-                                ${mediasHtml}
-                            </div>
-                            <div class="p-2 flex flex-col justify-between flex-1">
-                                <h3 class="font-bold text-white text-[10px] leading-tight line-clamp-2 uppercase mb-1">${game.title}</h3>
-                                <div class="flex items-center justify-between">
-                                    <div class="flex gap-1 items-center flex-wrap">${platformTagsHtml}</div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
+                    html += `<div onclick="window.openEditModal('${game.id}')" class="bg-slate-900 border rounded-2xl flex flex-col overflow-hidden active:scale-95 transition-transform ${borderStyle}"><div class="relative aspect-[3/4] bg-slate-950 border-b border-slate-800">${coverInner}${statusBadge}${mediasHtml}</div><div class="p-2 flex flex-col justify-between flex-1"><h3 class="font-bold text-white text-[10px] leading-tight line-clamp-2 uppercase mb-1">${game.title}</h3><div class="flex items-center justify-between"><div class="flex gap-1 items-center flex-wrap">${platformTagsHtml}</div></div></div></div>`;
                 });
 
-                dom.gamesGrid.innerHTML = html;
-                lucide.createIcons({ root: dom.gamesGrid });
+                dom.gamesGrid.innerHTML = html; lucide.createIcons({ root: dom.gamesGrid });
             }
-            
-            // Renderiza também a sessão "Jogando Agora"
             renderPlayingNow();
         }
 
         // --- CRUD / MODAL FUNCTIONS ---
         window.openNewGameModal = function() {
+            // LÓGICA DE LIMITE (FREEMIUM)
+            if (!window.currentUserIsPremium && games && games.length >= 10) {
+                showPremiumScreen(false, "Alcançaste o limite de 10 jogos do plano gratuito. Desbloqueia o Premium para adicionares mais jogos sem limites!");
+                return;
+            }
+
             editingGameId = null;
             dom.fTitle.value = dom.fCoverUrl.value = dom.fSynopsis.value = dom.fBorrowedTo.value = '';
-            formData_selectedPlatforms = ['ps4']; 
-            formData_selectedLanguages = ['pt-br-audio', 'pt-br-leg']; 
-            formData_selectedMedias = ['fisica'];
-            formData_covers = {};
-            formData_activePlatformCover = 'ps4';
+            formData_selectedPlatforms = ['ps4']; formData_selectedLanguages = ['pt-br-audio', 'pt-br-leg']; formData_selectedMedias = ['fisica']; formData_covers = {}; formData_activePlatformCover = 'ps4';
             
-            dom.fIsPlaying.checked = false;
-            dom.fIsWishlist.checked = window.filterPlatform === 'wishlist'; 
-            dom.fIsBorrowed.checked = false;
-            toggleWishlistUI(dom.fIsWishlist.checked);
+            dom.fIsPlaying.checked = false; dom.fIsWishlist.checked = window.filterPlatform === 'wishlist'; dom.fIsBorrowed.checked = false; toggleWishlistUI(dom.fIsWishlist.checked);
             
-            formData_coverOptions = []; formData_currentCoverIndex = 0;
-            dom.apiSearchInput.value = ''; dom.apiResultsContainer.innerHTML = ''; dom.apiResultsContainer.classList.add('hidden');
-            dom.btnTranslate.disabled = true;
+            formData_coverOptions = []; formData_currentCoverIndex = 0; dom.apiSearchInput.value = ''; dom.apiResultsContainer.innerHTML = ''; dom.apiResultsContainer.classList.add('hidden'); dom.btnTranslate.disabled = true;
             
             renderPlatformToggles(); renderLanguageToggles(); renderMediaToggles(); renderModalCoverUI();
 
-            dom.modalTitleText.textContent = 'Adicionar Jogo';
-            dom.modalTitleIcon.setAttribute('data-lucide', 'plus-circle');
-            dom.modalTitleIcon.className = "w-5 h-5 text-blue-400";
-            dom.btnDelete.classList.add('hidden');
+            dom.modalTitleText.textContent = 'Adicionar Jogo'; dom.modalTitleIcon.setAttribute('data-lucide', 'plus-circle'); dom.modalTitleIcon.className = "w-5 h-5 text-blue-400"; dom.btnDelete.classList.add('hidden');
 
-            dom.modal.classList.remove('hidden'); dom.modal.classList.add('flex');
-            lucide.createIcons();
+            dom.modal.classList.remove('hidden'); dom.modal.classList.add('flex'); lucide.createIcons();
         }
 
         window.openEditModal = function(id) {
-            const game = games.find(g => g.id === id);
-            if(!game) return;
+            const game = games.find(g => g.id === id); if(!game) return;
             editingGameId = id;
 
             dom.fTitle.value = game.title || '';
@@ -1515,79 +2029,66 @@
             if (game.coverUrl && !Object.keys(formData_covers).length) formData_covers[formData_selectedPlatforms[0] || 'default'] = game.coverUrl;
             formData_activePlatformCover = formData_selectedPlatforms[0] || 'default';
             
-            formData_selectedLanguages = Array.isArray(game.languages) ? [...game.languages] : [];
-            formData_selectedMedias = game.medias ? [...game.medias] : [];
-            dom.fSynopsis.value = game.synopsis || '';
+            formData_selectedLanguages = Array.isArray(game.languages) ? [...game.languages] : []; formData_selectedMedias = game.medias ? [...game.medias] : []; dom.fSynopsis.value = game.synopsis || '';
             
-            dom.fIsPlaying.checked = game.isPlaying || false;
-            dom.fIsWishlist.checked = game.isWishlist || false;
-            dom.fIsBorrowed.checked = game.isBorrowed || false;
-            dom.fBorrowedTo.value = game.borrowedTo || '';
-            
-            toggleWishlistUI(game.isWishlist);
+            dom.fIsPlaying.checked = game.isPlaying || false; dom.fIsWishlist.checked = game.isWishlist || false; dom.fIsBorrowed.checked = game.isBorrowed || false; dom.fBorrowedTo.value = game.borrowedTo || ''; toggleWishlistUI(game.isWishlist);
 
-            formData_coverOptions = []; formData_currentCoverIndex = 0;
-            dom.apiSearchInput.value = ''; dom.apiResultsContainer.innerHTML = ''; dom.apiResultsContainer.classList.add('hidden');
-            dom.btnTranslate.disabled = !game.synopsis;
+            formData_coverOptions = []; formData_currentCoverIndex = 0; dom.apiSearchInput.value = ''; dom.apiResultsContainer.innerHTML = ''; dom.apiResultsContainer.classList.add('hidden'); dom.btnTranslate.disabled = !game.synopsis;
 
             renderPlatformToggles(); renderLanguageToggles(); renderMediaToggles(); renderModalCoverUI();
 
-            dom.modalTitleText.textContent = 'Editar Jogo';
-            dom.modalTitleIcon.setAttribute('data-lucide', 'edit-3');
-            dom.modalTitleIcon.className = "w-5 h-5 text-amber-400";
-            dom.btnDelete.classList.remove('hidden');
+            dom.modalTitleText.textContent = 'Editar Jogo'; dom.modalTitleIcon.setAttribute('data-lucide', 'edit-3'); dom.modalTitleIcon.className = "w-5 h-5 text-amber-400"; dom.btnDelete.classList.remove('hidden');
 
-            dom.modal.classList.remove('hidden'); dom.modal.classList.add('flex');
-            lucide.createIcons();
+            dom.modal.classList.remove('hidden'); dom.modal.classList.add('flex'); lucide.createIcons();
         }
 
-        window.closeModal = function() {
-            dom.modal.classList.add('hidden'); dom.modal.classList.remove('flex');
-        }
+        window.closeModal = function() { dom.modal.classList.add('hidden'); dom.modal.classList.remove('flex'); }
 
         window.saveGame = function() {
             const title = dom.fTitle.value.trim();
-            if (!title || !formData_selectedPlatforms.length) return alert("Preencha Título e Plataforma!");
+            if (!title || !formData_selectedPlatforms.length) {
+                showDialog({ message: "Preenche o Título e a Plataforma!" });
+                return;
+            }
 
-            const isWishlist = dom.fIsWishlist.checked;
-            const isBorrowed = isWishlist ? false : dom.fIsBorrowed.checked; 
+            const isWishlist = dom.fIsWishlist.checked; const isBorrowed = isWishlist ? false : dom.fIsBorrowed.checked; 
 
             const gameData = {
                 title: title.toUpperCase(), platforms: formData_selectedPlatforms,
                 covers: formData_covers, coverUrl: formData_covers[formData_selectedPlatforms[0]] || dom.fCoverUrl.value || '', 
                 languages: formData_selectedLanguages, medias: formData_selectedMedias, 
-                synopsis: dom.fSynopsis.value, isWishlist: isWishlist,
-                isPlaying: dom.fIsPlaying.checked,
-                isBorrowed: isBorrowed,
-                borrowedTo: isBorrowed ? dom.fBorrowedTo.value : ''
+                synopsis: dom.fSynopsis.value, isWishlist: isWishlist, isPlaying: dom.fIsPlaying.checked, isBorrowed: isBorrowed, borrowedTo: isBorrowed ? dom.fBorrowedTo.value : ''
             };
 
             games = Array.isArray(games) ? games : Object.values(games || {});
             if (editingGameId) {
-                gameData.id = editingGameId;
-                const idx = games.findIndex(g => g && g.id === editingGameId);
-                if(idx !== -1) games[idx] = gameData;
+                gameData.id = editingGameId; const idx = games.findIndex(g => g && g.id === editingGameId); if(idx !== -1) games[idx] = gameData;
             } else {
-                gameData.id = Date.now().toString();
-                games.push(gameData);
+                gameData.id = Date.now().toString(); games.push(gameData);
             }
 
+            atualizarBarraFreeTier();
             updatePlatforms(); renderGames(); closeModal(); saveToCloud(games); 
         }
 
         window.deleteGame = function() {
             if(!editingGameId) return;
-            if (confirm("Deletar jogo?")) {
-                games = games.filter(g => g && g.id !== editingGameId);
-                updatePlatforms(); renderGames(); closeModal(); saveToCloud(games); 
-            }
+            showDialog({
+                title: "Apagar Jogo",
+                message: "Tem a certeza que deseja apagar este jogo do seu cofre?",
+                type: 'confirm',
+                confirmText: "Apagar",
+                onConfirm: () => {
+                    games = games.filter(g => g && g.id !== editingGameId); 
+                    atualizarBarraFreeTier();
+                    updatePlatforms(); renderGames(); closeModal(); saveToCloud(games); 
+                }
+            });
         }
 
         // --- API FUNCTIONS ---
         window.handleApiSearch = async function() {
-            const query = dom.apiSearchInput.value.trim();
-            if (!query) return;
-
+            const query = dom.apiSearchInput.value.trim(); if (!query) return;
             dom.btnApiSearch.disabled = true; dom.apiSearchIcon.classList.add('hidden'); dom.apiSearchLoader.classList.remove('hidden');
 
             try {
@@ -1618,31 +2119,21 @@
                         let imagesMap = {};
                         if(imgData?.data?.images) {
                             Object.keys(imgData.data.images).forEach(gId => {
-                                const imgs = imgData.data.images[gId];
-                                const front = imgs.filter(i => i.side === 'front');
-                                imagesMap[gId] = (front.length ? front : imgs).map(i => baseUrl + i.filename);
+                                const imgs = imgData.data.images[gId]; const front = imgs.filter(i => i.side === 'front'); imagesMap[gId] = (front.length ? front : imgs).map(i => baseUrl + i.filename);
                             });
                         }
                         apiResultsList = gamesData.map(g => ({ title: g.game_title, covers: imagesMap[g.id] || [], synopsis: g.overview || "" }));
                     }
                 }
                 renderApiResults();
-            } catch (err) { alert("Erro de API."); } 
+            } catch (err) { showDialog({ title: "Erro", message: "Falha ao conectar com a API." }); } 
             finally { dom.btnApiSearch.disabled = false; dom.apiSearchIcon.classList.remove('hidden'); dom.apiSearchLoader.classList.add('hidden'); }
         }
 
         function renderApiResults() {
             if (!apiResultsList.length) dom.apiResultsContainer.innerHTML = '<div class="p-3 text-xs text-slate-500 text-center">Nada encontrado.</div>';
             else {
-                dom.apiResultsContainer.innerHTML = apiResultsList.map((r, i) => `
-                    <div onclick="window.selectApiResult(${i})" class="p-2 flex items-center justify-between active:bg-slate-800 transition-colors cursor-pointer">
-                        <div class="flex items-center gap-2 truncate">
-                            <img src="${r.covers[0] || ''}" class="w-6 h-8 bg-slate-950 object-cover border border-slate-800 shrink-0" onerror="this.style.display='none'" />
-                            <span class="text-[10px] font-bold text-white truncate uppercase">${r.title}</span>
-                        </div>
-                        <i data-lucide="download" class="w-3.5 h-3.5 text-blue-400 shrink-0 ml-2"></i>
-                    </div>
-                `).join('');
+                dom.apiResultsContainer.innerHTML = apiResultsList.map((r, i) => `<div onclick="window.selectApiResult(${i})" class="p-2 flex items-center justify-between active:bg-slate-800 transition-colors cursor-pointer"><div class="flex items-center gap-2 truncate"><img src="${r.covers[0] || ''}" class="w-6 h-8 bg-slate-950 object-cover border border-slate-800 shrink-0" onerror="this.style.display='none'" /><span class="text-[10px] font-bold text-white truncate uppercase">${r.title}</span></div><i data-lucide="download" class="w-3.5 h-3.5 text-blue-400 shrink-0 ml-2"></i></div>`).join('');
                 lucide.createIcons({ root: dom.apiResultsContainer });
             }
             dom.apiResultsContainer.classList.remove('hidden');
@@ -1650,11 +2141,7 @@
 
         window.selectApiResult = function(index) {
             const result = apiResultsList[index];
-            dom.fTitle.value = result.title.toUpperCase(); dom.fSynopsis.value = result.synopsis;
-            formData_coverOptions = result.covers; formData_currentCoverIndex = 0;
-            dom.fCoverUrl.value = formData_covers[formData_activePlatformCover] = result.covers[0] || '';
-            dom.btnTranslate.disabled = !result.synopsis;
-            renderCoverPreview(); dom.apiResultsContainer.classList.add('hidden');
+            dom.fTitle.value = result.title.toUpperCase(); dom.fSynopsis.value = result.synopsis; formData_coverOptions = result.covers; formData_currentCoverIndex = 0; dom.fCoverUrl.value = formData_covers[formData_activePlatformCover] = result.covers[0] || ''; dom.btnTranslate.disabled = !result.synopsis; renderCoverPreview(); dom.apiResultsContainer.classList.add('hidden');
         }
 
         window.handleTranslate = async function() {
@@ -1662,13 +2149,10 @@
             dom.btnTranslate.disabled = true; dom.translateNormal.classList.add('hidden'); dom.translateSpin.classList.remove('hidden');
             try {
                 const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=pt&dt=t&q=${encodeURIComponent(dom.fSynopsis.value)}`);
-                const data = await res.json();
-                if (data && data[0]) dom.fSynopsis.value = data[0].map(i => i[0]).join('');
+                const data = await res.json(); if (data && data[0]) dom.fSynopsis.value = data[0].map(i => i[0]).join('');
             } catch (err) {} 
             finally { dom.btnTranslate.disabled = false; dom.translateNormal.classList.remove('hidden'); dom.translateSpin.classList.add('hidden'); }
         }
-
-        init();
     </script>
 </body>
 </html>
